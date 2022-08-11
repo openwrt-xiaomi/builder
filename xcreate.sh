@@ -26,7 +26,7 @@ fi
 
 XTOPDIR=$XDIR/$TARGET_BRANCH
 
-find . -maxdepth 1 -type f -name "*.sh" -exec chmod 775 -- {} + >/dev/null
+#find . -maxdepth 1 -type f -name "*.sh" -exec chmod 775 -- {} + >/dev/null
 find . -maxdepth 1 -type f -name "*.sh" -exec cp {} $XTOPDIR \; >/dev/null
 find . -maxdepth 1 -type f -name "*.config" -exec cp {} $XTOPDIR \; >/dev/null
 
