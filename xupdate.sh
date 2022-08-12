@@ -15,7 +15,7 @@ while getopts "f" opt; do
 	esac
 done
 
-[ ! -d "$FEEDSDIR/package" ] && OPT_FULL_UPDATE=true
+[ ! -d "$FEEDSDIR" ] && OPT_FULL_UPDATE=true
 
 rm -rf tmp
 if [ "$OPT_FULL_UPDATE" = "true" ]; then

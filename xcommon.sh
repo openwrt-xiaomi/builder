@@ -2,7 +2,7 @@
 
 XSUPPORTEDVER=21
 XREPOADDR=https://github.com/openwrt-xiaomi
-XDEFBRANCH=xq-21.02.1
+XDEFBRANCH=xq-21.02.3
 
 logmsg() {
 	echo "$@"
@@ -81,30 +81,5 @@ get_cfg_pkg_flag() {
 	local k=$( grep -o -P "(?<=^CONFIG_PACKAGE_$name=).*" "$cfg" 2> /dev/null )
 	echo "$k"
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 

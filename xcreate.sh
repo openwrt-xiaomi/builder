@@ -5,8 +5,9 @@ export XDIR=$SCRIPT_DIR
 
 . ./xcommon.sh
 
-[ -z "$*" ] && die "No options found!"
+#[ -z "$*" ] && die "No options found!"
 
+TARGET_BRANCH=
 while getopts "v:" opt; do
 	case $opt in
 		v ) TARGET_BRANCH=$OPTARG;;

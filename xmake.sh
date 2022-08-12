@@ -5,10 +5,12 @@ export XDIR=$SCRIPT_DIR
 
 . ./xcommon.sh
 
+MAKE_JOBS=
 XTARGET=
 OPT_FULL_REBUILD=false
-while getopts "t:f" opt; do
+while getopts "j:t:f" opt; do
 	case $opt in
+		j) MAKE_JOBS=$OPTARG;;
 		t) XTARGET=$OPTARG;;
 		f) OPT_FULL_REBUILD=true;;
 	esac
@@ -19,7 +21,7 @@ CFG=$XDIR/$XTARGET.config
 [ ! -f "$CFG" ] && die "File '$XTARGET.config' not found!"
 
 if [ "$OPT_FULL_REBUILD" = "true" ]; then
-	make clean
+	[ -f .config ] && make clean
 	rm -rf tmp
 	#rm -rf feeds/luci.tmp
 	#rm -rf feeds/packages.tmp
@@ -44,7 +46,9 @@ if [ $( get_cfg_pkg_flag "$XDIR/.config" "dnsmasq-full" ) = "y" ]; then
 	sed -i '/CONFIG_PACKAGE_dnsmasq=y/d' $XDIR/.config
 fi
 
-MAKE_JOBS=$( grep processor /proc/cpuinfo | tail -n 1 | awk '{print $3}' )
+if [ -z "$MAKE_JOBS" ]; then
+	MAKE_JOBS=$( grep processor /proc/cpuinfo | tail -n 1 | awk '{print $3}' )
+fi
 
 #make tools/install -j$MAKE_JOBS
 #make toolchain/install -j$MAKE_JOBS
