@@ -46,6 +46,12 @@ if [ $( get_cfg_pkg_flag "$XDIR/.config" "dnsmasq-full" ) = "y" ]; then
 	sed -i '/CONFIG_PACKAGE_dnsmasq=y/d' $XDIR/.config
 fi
 
+rm -f $XDIR/luci_aux_menu.json
+TARGET_MENU="$XDIR"/"$XTARGET""_menu.json"
+if [ -f "$TARGET_MENU" ]; then
+	cp -f "$TARGET_MENU" $XDIR/luci_aux_menu.json
+fi
+
 if [ -z "$MAKE_JOBS" ]; then
 	MAKE_JOBS=$( grep processor /proc/cpuinfo | tail -n 1 | awk '{print $3}' )
 fi

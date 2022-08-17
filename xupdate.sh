@@ -70,9 +70,15 @@ if [ "$CLONE_ADDONS" = "true" ]; then
 fi
 
 if [ "$OPT_FULL_UPDATE" = "true" ]; then
-	./vermagic_update.sh ipq806x generic
-	./vermagic_update.sh ramips mt7621
-	./vermagic_update.sh mediatek mt7622
+	if [ -f "$XDIR/vermagic_update.sh" ]; then
+		./vermagic_update.sh ipq806x generic
+		./vermagic_update.sh ramips mt7621
+		./vermagic_update.sh mediatek mt7622
+	fi
+fi
+
+if [ -f "$XDIR/luci_dispatcher.sh" ]; then
+	./luci_dispatcher.sh
 fi
 
 echo "All git sources updated!"
