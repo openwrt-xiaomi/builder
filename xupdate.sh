@@ -32,8 +32,13 @@ git reset --hard HEAD
 git fetch
 [ "$?" != "0" ] && die "Can't fetch current repository"
 
-git pull --force "origin"
-[ "$?" != "0" ] && die "Can't pull current repository"
+git pull --force "origin" &> /dev/null 
+#[ "$?" != "0" ] && die "Can't pull current repository"
+
+CUR_BRANCH=$( git rev-parse --abbrev-ref HEAD )
+
+git reset --hard origin/$CUR_BRANCH
+[ "$?" != "0" ] && die "Can't reset current repository"
 
 rm -f feeds.conf
 cp -f feeds.conf.default feeds.conf
