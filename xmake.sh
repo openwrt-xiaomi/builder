@@ -52,6 +52,15 @@ if [ -f "$TARGET_MENU" ]; then
 	cp -f "$TARGET_MENU" $XDIR/luci_aux_menu.json
 fi
 
+NETPORTSDIR=$XDIR/package/addons/luci-app-tn-netports/root/etc/config
+if [ -d "$NETPORTSDIR" ]; then
+	rm -f $NETPORTSDIR/luci_netports
+	TARGET_NETPORTS=$XDIR/$XTARGET.netports
+	if [ -f "$TARGET_NETPORTS" ]; then
+		cp -f "$TARGET_NETPORTS" $NETPORTSDIR/luci_netports
+	fi
+fi
+
 if [ -z "$MAKE_JOBS" ]; then
 	MAKE_JOBS=$( grep processor /proc/cpuinfo | tail -n 1 | awk '{print $3}' )
 fi

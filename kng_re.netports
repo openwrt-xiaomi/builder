@@ -1,0 +1,29 @@
+config global 'global'
+	option default_additional_info '0'
+	option default_h_mode          '1'
+	option hv_mode_switch_button   '1'
+
+config port
+	option ifname 'wan'
+	option name 'WAN'
+	option type 'copper'
+
+config port
+	option ifname 'lan1'
+	option name 'LAN 1'
+	option type 'copper'
+
+config port
+	option ifname 'lan2'
+	option name 'LAN 2'
+	option type 'copper'
+
+config port
+	option ifname 'lan3'
+	option name 'LAN 3'
+	option type 'copper'
+
+config port
+	option ifname 'lan4'
+	option name 'LAN 4'
+	option type 'copper'
