@@ -4,8 +4,8 @@
         "order": 45,
         "items": [
             [ "nas", "filebrowser" ],
-            [ "services", "aria2" ],
             [ "services", "samba4" ],
+            [ "services", "aria2" ],
             [ "services", "transmission" ],
             [ "system", "diskman" ],
             [ "services", "disks-info" ],
