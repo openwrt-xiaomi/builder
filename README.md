@@ -13,11 +13,11 @@ sudo apt-get install python3-distutils rsync unzip zlib1g-dev
 ## Build firmware
 
 ```
-git clone https://github.com/openwrt-xiaomi/builder -b v21 openwrt-v21
-cd openwrt-v21
+git clone https://github.com/openwrt-xiaomi/builder -b v23 openwrt-v23
+cd openwrt-v23
 
-./xcreate.sh -v xq-21.02.3
-cd xq-21.02.3
+./xcreate.sh -v xq-23.05.0
+cd xq-23.05.0
 
 ./xupdate.sh -f
 
