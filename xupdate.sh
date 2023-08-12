@@ -28,6 +28,8 @@ if [ "$OPT_FULL_UPDATE" = "true" ]; then
 fi
 
 git reset --hard HEAD
+#git revert HEAD~30..HEAD
+#git reset --hard HEAD
 
 git fetch
 [ "$?" != "0" ] && die "Can't fetch current repository"
@@ -83,6 +85,7 @@ if [ "$OPT_FULL_UPDATE" = "true" ]; then
 fi
 
 if [ -f "$XDIR/luci_dispatcher.sh" ]; then
+	chmod 755 ./luci_dispatcher.sh
 	./luci_dispatcher.sh
 fi
 
