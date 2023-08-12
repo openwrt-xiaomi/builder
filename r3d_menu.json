@@ -7,6 +7,7 @@
             [ "services", "aria2" ],
             [ "services", "samba4" ],
             [ "services", "transmission" ],
+            [ "services", "qbittorrent" ],
             [ "system", "diskman" ],
             [ "services", "disks-info" ],
             [ "services", "hd_idle" ],
