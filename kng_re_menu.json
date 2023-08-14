@@ -12,5 +12,15 @@
             [ "services", "hd_idle" ],
             [ "services", "minidlna" ]
         ]
+    },
+    "vpn": {
+        "title": "VPN",
+        "order": 70,
+        "items": [
+            [ "vpn", "openvpn" ],
+            [ "status", "wireguard" ],
+            [ "services", "shadowsocks-libev" ],
+            [ "services", "shadowsocks" ]
+        ]
     }
 }

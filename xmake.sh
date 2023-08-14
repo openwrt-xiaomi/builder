@@ -23,9 +23,11 @@ CFG=$XDIR/$XTARGET.config
 if [ "$OPT_FULL_REBUILD" = "true" ]; then
 	[ -f .config ] && make clean
 	rm -rf tmp
-	#rm -rf feeds/luci.tmp
-	#rm -rf feeds/packages.tmp
-	#rm -rf staging_dir/packages
+	rm -rf feeds/luci.tmp
+	rm -rf feeds/packages.tmp
+	rm -rf staging_dir/packages
+	rm -rf staging_dir
+	rm -rf build_dir
 fi
 
 rm -f .config
@@ -59,6 +61,11 @@ if [ -d "$NETPORTSDIR" ]; then
 	if [ -f "$TARGET_NETPORTS" ]; then
 		cp -f "$TARGET_NETPORTS" $NETPORTSDIR/luci_netports
 	fi
+fi
+
+DASHBRDPO=$XDIR/feeds/luci/modules/luci-mod-dashboard/po/ru/dashboard.po
+if [ -f "$DASHBRDPO" ]; then
+	sed -i 's/msgid "Dashboard"/msgid "__dash_board__"/g' $DASHBRDPO
 fi
 
 if [ -z "$MAKE_JOBS" ]; then
