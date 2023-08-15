@@ -1,8 +1,8 @@
 #!/bin/bash
 
-XSUPPORTEDVER=21
+XSUPPORTEDVER=23
 XREPOADDR=https://github.com/openwrt-xiaomi
-XDEFBRANCH=xq-21.02.3
+XDEFBRANCH=xq-23.05.0
 
 logmsg() {
 	echo "$@"
@@ -18,6 +18,18 @@ die() {
 }
 
 #[ ! -d "$XDIR" ] && die "Base directory not defined"
+
+is_nss_repo() {
+	local FN=$1/package/kernel/mac80211/Makefile
+	if [ ! -f "$FN" ]; then
+		return $(false)
+	fi
+	if [ $( grep -q "kmod-qca-nss-drv" $FN >/dev/null; echo "$?" ) != "0" ]; then
+		return $(false)
+	fi
+	return $(true)
+}
+
 
 get_cfg_inc_lst() {
 	local cfg=$1
@@ -81,5 +93,4 @@ get_cfg_pkg_flag() {
 	local k=$( grep -o -P "(?<=^CONFIG_PACKAGE_$name=).*" "$cfg" 2> /dev/null )
 	echo "$k"
 }
-
 

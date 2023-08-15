@@ -5,6 +5,7 @@ export XDIR=$SCRIPT_DIR
 export XADDONSDIR=$XDIR/package/addons
 FEEDSDIR=$XDIR/package/feeds
 ADDONSCFG=$XDIR/_addons.config
+ADDONSNSS=$XDIR/_addons_nss.config
 
 . ./xcommon.sh
 
@@ -50,6 +51,15 @@ for feed in $feed_lst; do
 	#echo "$feed = '$value'"
 	echo "src-git $feed $value" >> feeds.conf
 done
+
+if is_nss_repo "$XDIR"; then
+	feed_lst=$( get_cfg_feed_lst "$ADDONSNSS" )
+	for feed in $feed_lst; do
+		value=$( get_cfg_feed_url "$ADDONSNSS" $feed )
+		#echo "$feed = '$value'"
+		echo "src-git $feed $value" >> feeds.conf
+	done
+fi
 
 if [ "$OPT_FULL_UPDATE" = "true" ]; then
 	./scripts/feeds update -a

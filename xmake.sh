@@ -25,6 +25,7 @@ if [ "$OPT_FULL_REBUILD" = "true" ]; then
 	rm -rf tmp
 	rm -rf feeds/luci.tmp
 	rm -rf feeds/packages.tmp
+	rm -rf feeds/nss.tmp
 	rm -rf staging_dir/packages
 	rm -rf staging_dir
 	rm -rf build_dir
@@ -38,6 +39,11 @@ for inc in $inclst; do
 	[ ! -f "$XDIR/$inc" ] && die "File '$inc' not found!"
 	cat $XDIR/$inc >> .config
 done
+
+if is_nss_repo "$XDIR"; then
+	cat $XDIR/_addons_nss.config >> .config
+fi
+
 #cp -f .config current.config
 
 make defconfig
