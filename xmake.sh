@@ -48,6 +48,10 @@ fi
 
 make defconfig
 
+if [ $( grep -q "CONFIG_NSS_DRV_PPPOE_ENABLE=y" $XDIR/.config >/dev/null; echo "$?" ) == "0" ]; then
+	sed -i 's/CONFIG_PACKAGE_kmod-qca-nss-drv-pppoe=m/CONFIG_PACKAGE_kmod-qca-nss-drv-pppoe=y/g' $XDIR/.config
+fi
+
 if [ $( get_cfg_pkg_flag "$XDIR/.config" "dnsmasq-full" ) = "y" ]; then
 	echo "Forced using dnsmasq-full !!!"
 	sed -i '/CONFIG_DEFAULT_dnsmasq=y/d' $XDIR/.config
