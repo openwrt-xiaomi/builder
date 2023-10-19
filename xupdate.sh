@@ -28,8 +28,9 @@ if [ "$OPT_FULL_UPDATE" = "true" ]; then
 	rm -rf $XADDONSDIR
 fi
 
-git reset --hard HEAD
-#git revert HEAD~30..HEAD
+#git reset --hard HEAD
+git reset --hard HEAD~50
+#git revert HEAD~50..HEAD
 #git reset --hard HEAD
 
 git fetch
@@ -89,8 +90,10 @@ fi
 if [ "$OPT_FULL_UPDATE" = "true" ]; then
 	if [ -f "$XDIR/vermagic_update.sh" ]; then
 		./vermagic_update.sh ipq806x generic
+		./vermagic_update.sh ipq807x generic
 		./vermagic_update.sh ramips mt7621
 		./vermagic_update.sh mediatek mt7622
+		./vermagic_update.sh mediatek filogic
 	fi
 fi
 
