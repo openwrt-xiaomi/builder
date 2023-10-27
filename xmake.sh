@@ -58,6 +58,12 @@ if [ $( get_cfg_pkg_flag "$XDIR/.config" "dnsmasq-full" ) = "y" ]; then
 	sed -i '/CONFIG_PACKAGE_dnsmasq=y/d' $XDIR/.config
 fi
 
+if [ $( get_cfg_opt_flag "$XDIR/.config" "TARGET_INITRAMFS_FORCE" ) = "y" ]; then
+	echo "Forced uses integrated INITRAMFS !!!"
+	sed -i '/CONFIG_USES_SEPARATE_INITRAMFS=y/d' $XDIR/.config
+	sed -i '/CONFIG_TARGET_ROOTFS_INITRAMFS_SEPARATE=y/d' $XDIR/.config
+fi
+
 rm -f $XDIR/luci_aux_menu.json
 TARGET_MENU="$XDIR"/"$XTARGET""_menu.json"
 if [ -f "$TARGET_MENU" ]; then

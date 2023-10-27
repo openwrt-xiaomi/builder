@@ -94,3 +94,10 @@ get_cfg_pkg_flag() {
 	echo "$k"
 }
 
+get_cfg_opt_flag() {
+	local cfg=$1
+	local name=$2
+	local k=$( grep -o -P "(?<=^CONFIG_$name=).*" "$cfg" 2> /dev/null )
+	echo "$k"
+}
+
