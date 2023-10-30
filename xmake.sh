@@ -48,17 +48,20 @@ fi
 
 make defconfig
 
-if [ $( grep -q "CONFIG_NSS_DRV_PPPOE_ENABLE=y" $XDIR/.config >/dev/null; echo "$?" ) == "0" ]; then
+NSS_DRV_PPPOE_ENABLE=$( get_cfg_opt_flag "$XDIR/.config" "NSS_DRV_PPPOE_ENABLE" )
+if [ "$NSS_DRV_PPPOE_ENABLE" = "y" ]; then
 	sed -i 's/CONFIG_PACKAGE_kmod-qca-nss-drv-pppoe=m/CONFIG_PACKAGE_kmod-qca-nss-drv-pppoe=y/g' $XDIR/.config
 fi
 
-if [ $( get_cfg_pkg_flag "$XDIR/.config" "dnsmasq-full" ) = "y" ]; then
+pkg_dnsmasq_full=$( get_cfg_pkg_flag "$XDIR/.config" "dnsmasq-full" )
+if [ "$pkg_dnsmasq_full" = "y" ]; then
 	echo "Forced using dnsmasq-full !!!"
 	sed -i '/CONFIG_DEFAULT_dnsmasq=y/d' $XDIR/.config
 	sed -i '/CONFIG_PACKAGE_dnsmasq=y/d' $XDIR/.config
 fi
 
-if [ $( get_cfg_opt_flag "$XDIR/.config" "TARGET_INITRAMFS_FORCE" ) = "y" ]; then
+TARGET_INITRAMFS_FORCE=$( get_cfg_opt_flag "$XDIR/.config" "TARGET_INITRAMFS_FORCE" )
+if [ "$TARGET_INITRAMFS_FORCE" = "y" ]; then
 	echo "Forced uses integrated INITRAMFS !!!"
 	sed -i '/CONFIG_USES_SEPARATE_INITRAMFS=y/d' $XDIR/.config
 	sed -i '/CONFIG_TARGET_ROOTFS_INITRAMFS_SEPARATE=y/d' $XDIR/.config
