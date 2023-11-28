@@ -1,9 +1,13 @@
 #!/bin/bash
 
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
-export XDIR=$SCRIPT_DIR
+export XDIR="$SCRIPT_DIR"
 
 . ./xcommon.sh
+
+if echo "$XDIR" | grep -E '[ "]' >/dev/null ;then
+	die "The path to the base directory cannot contain spaces!"
+fi
 
 MAKE_JOBS=
 XTARGET=
@@ -17,67 +21,75 @@ while getopts "j:t:f" opt; do
 done
 
 [ -z "$XTARGET" ] && die "Target config not specified!"
-CFG=$XDIR/$XTARGET.config
-[ ! -f "$CFG" ] && die "File '$XTARGET.config' not found!"
+if echo "$XTARGET" | grep -E '[ "]' >/dev/null ;then
+	die "Target config filename cannot contain spaces!"
+fi
+TARGETCFG=$XDIR/$XTARGET.config
+[ ! -f $TARGETCFG ] && die "File '$XTARGET.config' not found!"
 
-if [ "$OPT_FULL_REBUILD" = "true" ]; then
-	[ -f .config ] && make clean
-	rm -rf tmp
-	rm -rf feeds/luci.tmp
-	rm -rf feeds/packages.tmp
-	rm -rf feeds/nss.tmp
-	rm -rf staging_dir/packages
-	rm -rf staging_dir
-	rm -rf build_dir
+CFG=$XDIR/.config
+
+if [ $OPT_FULL_REBUILD = true ]; then
+	[ -f $CFG ] && make clean
+	rm -rf $XDIR/tmp
+	rm -rf $XDIR/feeds/luci.tmp
+	rm -rf $XDIR/feeds/packages.tmp
+	rm -rf $XDIR/feeds/nss.tmp
+	rm -rf $XDIR/staging_dir/packages
+	rm -rf $XDIR/staging_dir
+	rm -rf $XDIR/build_dir
 fi
 
-rm -f .config
-cp -f "$CFG" .config
+rm -f $CFG
+cp -f $TARGETCFG $CFG
+if is_nss_repo $XDIR; then
+	sed -i "/#include _base/a #include _addons_nss.config" $CFG
+fi
 inclst=$( get_cfg_inc_lst $CFG )
 for inc in $inclst; do
-	echo -e "\n\n" >> .config
-	[ ! -f "$XDIR/$inc" ] && die "File '$inc' not found!"
-	cat $XDIR/$inc >> .config
+	incfn=$XDIR/$inc
+	[ ! -f $incfn ] && die "File '$inc' not found!"
+	sed -i "/#include $inc/a <<LF>><<LF>>" $CFG
+	sed -i "s/<<LF>>/\n/g" $CFG
+	sed -i "/#include $inc/ r $incfn" $CFG
 done
 
-if is_nss_repo "$XDIR"; then
-	cat $XDIR/_addons_nss.config >> .config
-fi
+cp -f $CFG $XDIR/__current.config
 
 #cp -f .config current.config
 
 make defconfig
 
-NSS_DRV_PPPOE_ENABLE=$( get_cfg_opt_flag "$XDIR/.config" "NSS_DRV_PPPOE_ENABLE" )
-if [ "$NSS_DRV_PPPOE_ENABLE" = "y" ]; then
-	sed -i 's/CONFIG_PACKAGE_kmod-qca-nss-drv-pppoe=m/CONFIG_PACKAGE_kmod-qca-nss-drv-pppoe=y/g' $XDIR/.config
+NSS_DRV_PPPOE_ENABLE=$( get_cfg_opt_flag $CFG NSS_DRV_PPPOE_ENABLE )
+if [ "$NSS_DRV_PPPOE_ENABLE" = y ]; then
+	sed -i 's/CONFIG_PACKAGE_kmod-qca-nss-drv-pppoe=m/CONFIG_PACKAGE_kmod-qca-nss-drv-pppoe=y/g' $CFG
 fi
 
-pkg_dnsmasq_full=$( get_cfg_pkg_flag "$XDIR/.config" "dnsmasq-full" )
-if [ "$pkg_dnsmasq_full" = "y" ]; then
+pkg_dnsmasq_full=$( get_cfg_pkg_flag $CFG dnsmasq-full )
+if [ "$pkg_dnsmasq_full" = y ]; then
 	echo "Forced using dnsmasq-full !!!"
-	sed -i '/CONFIG_DEFAULT_dnsmasq=y/d' $XDIR/.config
-	sed -i '/CONFIG_PACKAGE_dnsmasq=y/d' $XDIR/.config
+	sed -i '/CONFIG_DEFAULT_dnsmasq=y/d' $CFG
+	sed -i '/CONFIG_PACKAGE_dnsmasq=y/d' $CFG
 fi
 
-TARGET_INITRAMFS_FORCE=$( get_cfg_opt_flag "$XDIR/.config" "TARGET_INITRAMFS_FORCE" )
-if [ "$TARGET_INITRAMFS_FORCE" = "y" ]; then
+TARGET_INITRAMFS_FORCE=$( get_cfg_opt_flag $CFG TARGET_INITRAMFS_FORCE )
+if [ "$TARGET_INITRAMFS_FORCE" = y ]; then
 	echo "Forced uses integrated INITRAMFS !!!"
-	sed -i '/CONFIG_USES_SEPARATE_INITRAMFS=y/d' $XDIR/.config
-	sed -i '/CONFIG_TARGET_ROOTFS_INITRAMFS_SEPARATE=y/d' $XDIR/.config
+	sed -i '/CONFIG_USES_SEPARATE_INITRAMFS=y/d' $CFG
+	sed -i '/CONFIG_TARGET_ROOTFS_INITRAMFS_SEPARATE=y/d' $CFG
 fi
 
 NETPORTSDIR=$XDIR/package/addons/luci-app-tn-netports/root/etc/config
-if [ -d "$NETPORTSDIR" ]; then
+if [ -d $NETPORTSDIR ]; then
 	rm -f $NETPORTSDIR/luci_netports
 	TARGET_NETPORTS=$XDIR/$XTARGET.netports
-	if [ -f "$TARGET_NETPORTS" ]; then
-		cp -f "$TARGET_NETPORTS" $NETPORTSDIR/luci_netports
+	if [ -f $TARGET_NETPORTS ]; then
+		cp -f $TARGET_NETPORTS $NETPORTSDIR/luci_netports
 	fi
 fi
 
 DASHBRDPO=$XDIR/feeds/luci/modules/luci-mod-dashboard/po/ru/dashboard.po
-if [ -f "$DASHBRDPO" ]; then
+if [ -f $DASHBRDPO ]; then
 	sed -i 's/msgid "Dashboard"/msgid "__dash_board__"/g' $DASHBRDPO
 fi
 
