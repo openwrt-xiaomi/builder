@@ -56,7 +56,12 @@ done
 
 cp -f $CFG $XDIR/__current.config
 
-#cp -f .config current.config
+DIS_SVC_FN=$XDIR/disabled_services.lst
+rm -f $DIS_SVC_FN
+DIS_SVC_LST="$( get_cfg_dis_svc_lst $CFG )"
+if [ -n "$DIS_SVC_LST" ]; then
+	echo $DIS_SVC_LST > $DIS_SVC_FN
+fi
 
 make defconfig
 

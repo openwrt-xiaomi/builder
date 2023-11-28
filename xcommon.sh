@@ -63,6 +63,12 @@ get_cfg_expkg_url() {
 	echo "$k"
 }
 
+get_cfg_dis_svc_lst() {
+	local cfg=$1
+	local k=$( grep -o -P '(?<=^#DISABLED_SVC=).*' "$cfg" 2> /dev/null )
+	echo "$k"
+}
+
 get_cfg_board() {
 	local cfg=$1
 	local k=$( grep -o -P "(?<=^CONFIG_TARGET_)[a-z0-9]+(?==y)" "$cfg" 2> /dev/null )
