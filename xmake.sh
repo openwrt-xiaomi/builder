@@ -67,12 +67,6 @@ if [ "$TARGET_INITRAMFS_FORCE" = "y" ]; then
 	sed -i '/CONFIG_TARGET_ROOTFS_INITRAMFS_SEPARATE=y/d' $XDIR/.config
 fi
 
-rm -f $XDIR/luci_aux_menu.json
-TARGET_MENU="$XDIR"/"$XTARGET""_menu.json"
-if [ -f "$TARGET_MENU" ]; then
-	cp -f "$TARGET_MENU" $XDIR/luci_aux_menu.json
-fi
-
 NETPORTSDIR=$XDIR/package/addons/luci-app-tn-netports/root/etc/config
 if [ -d "$NETPORTSDIR" ]; then
 	rm -f $NETPORTSDIR/luci_netports
