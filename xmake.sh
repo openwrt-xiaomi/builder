@@ -63,6 +63,16 @@ if [ -n "$DIS_SVC_LST" ]; then
 	echo $DIS_SVC_LST > $DIS_SVC_FN
 fi
 
+LUCI_XRAY_MK=$XDIR/package/addons/luci-app-xray/core/Makefile
+if [ -f $LUCI_XRAY_MK ]; then
+	pkg_xray_core=$( get_cfg_pkg_flag $CFG )
+	if [ "$pkg_xray_core" != "y" ]; then
+		# Forced disable xray-core package
+		sed -i '/CONFIG_PACKAGE_xray-core=/d' $CFG
+		sed -i 's/ +xray-core / /g' $LUCI_XRAY_MK
+	fi
+fi
+
 make defconfig
 
 NSS_DRV_PPPOE_ENABLE=$( get_cfg_opt_flag $CFG NSS_DRV_PPPOE_ENABLE )
