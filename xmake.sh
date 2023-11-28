@@ -98,6 +98,30 @@ if [ -f $DASHBRDPO ]; then
 	sed -i 's/msgid "Dashboard"/msgid "__dash_board__"/g' $DASHBRDPO
 fi
 
+OPKG_DIR=$XDIR/files/etc/opkg
+if [ -d $OPKG_DIR ]; then
+	rm -rf $OPKG_DIR
+fi
+FANT_PKG_KEY=$XDIR/53FF2B6672243D28.pub
+if [ -f $FANT_PKG_KEY ]; then
+	OPKG_SRC_DIR=$XDIR/package/system/opkg/files
+	OPKG_KEYS_DIR=$OPKG_DIR/keys
+	mkdir -p $OPKG_KEYS_DIR
+	cp $FANT_PKG_KEY $OPKG_KEYS_DIR/53ff2b6672243d28
+	OPKG_CFEED_FN=$OPKG_DIR/customfeeds.conf
+	cp $OPKG_SRC_DIR/customfeeds.conf $OPKG_CFEED_FN
+	echo "" >> $OPKG_CFEED_FN
+	fant_luci="src/gz  fantastic_packages_luci      https://fantastic-packages.github.io/packages/releases/<<VER>>/packages/<<ARCH>>/luci"
+	echo "$fant_luci" >> $OPKG_CFEED_FN
+	fant_pkgs="src/gz  fantastic_packages_packages  https://fantastic-packages.github.io/packages/releases/<<VER>>/packages/<<ARCH>>/packages"
+	echo "$fant_pkgs" >> $OPKG_CFEED_FN
+	TARGET_ARCH_PACKAGES=$( get_cfg_opt_value $CFG TARGET_ARCH_PACKAGES )
+	[ -z "$TARGET_ARCH_PACKAGES" ] && die "Cannot find TARGET ARCH"
+	sed -i "s/<<VER>>/23.05/g" $OPKG_CFEED_FN
+	sed -i "s/<<ARCH>>/$TARGET_ARCH_PACKAGES/g" $OPKG_CFEED_FN
+	logmsg "Added support of Fantastic packages [https://fantastic-packages.github.io/packages]"
+fi
+
 if [ -z "$MAKE_JOBS" ]; then
 	MAKE_JOBS=$( grep processor /proc/cpuinfo | tail -n 1 | awk '{print $3}' )
 fi

@@ -107,3 +107,9 @@ get_cfg_opt_flag() {
 	echo "$k"
 }
 
+get_cfg_opt_value() {
+	local cfg=$1
+	local name=$2
+	local k=$( grep -o -P '(?<=^CONFIG_'$name'=").*(?=")' "$cfg" 2> /dev/null )
+	echo "$k"
+}
