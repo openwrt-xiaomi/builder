@@ -65,7 +65,7 @@ fi
 
 LUCI_XRAY_MK=$XDIR/package/addons/luci-app-xray/core/Makefile
 if [ -f $LUCI_XRAY_MK ]; then
-	pkg_xray_core=$( get_cfg_pkg_flag $CFG )
+	pkg_xray_core=$( get_cfg_pkg_flag $CFG xray-core )
 	if [ "$pkg_xray_core" != "y" ]; then
 		# Forced disable xray-core package
 		sed -i '/CONFIG_PACKAGE_xray-core=/d' $CFG
