@@ -72,21 +72,6 @@ if [ -f $LUCI_XRAY_MK ]; then
 		sed -i 's/ +xray-core / /g' $LUCI_XRAY_MK
 	fi
 fi
-HOMEPROXY_MK=$XDIR/package/addons/luci-app-homeproxy/Makefile
-if [ -f $HOMEPROXY_MK ]; then
-	pkg_chinadns=$( get_cfg_pkg_flag $CFG chinadns-ng )
-	if [ "$pkg_chinadns" != "y" ]; then
-		# Forced disable chinadns-ng package
-		sed -i '/CONFIG_PACKAGE_chinadns-ng=/d' $CFG
-		sed -i 's/+chinadns-ng /+luci /g' $HOMEPROXY_MK
-	fi
-	pkg_sing_box=$( get_cfg_pkg_flag $CFG sing-box )
-	if [ "$pkg_sing_box" != "y" ]; then
-		# Forced disable sing-box package
-		sed -i '/CONFIG_PACKAGE_sing-box=/d' $CFG
-		sed -i 's/+sing-box /+luci /g' $HOMEPROXY_MK
-	fi
-fi
 
 make defconfig
 
