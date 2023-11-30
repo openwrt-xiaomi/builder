@@ -94,6 +94,14 @@ if [ "$TARGET_INITRAMFS_FORCE" = y ]; then
 	sed -i '/CONFIG_TARGET_ROOTFS_INITRAMFS_SEPARATE=y/d' $CFG
 fi
 
+wpad_openssl=$( get_cfg_pkg_flag $XDIR/__current.config wpad-openssl )
+if [ "$wpad_openssl" = y ]; then
+	logmsg "Forced using wpad-openssl !!!"
+	sed -i 's/CONFIG_PACKAGE_wpad-basic-mbedtls=/# CONFIG_PACKAGE_wpad-basic-mbedtls=/g' $CFG
+	sed -i '/CONFIG_PACKAGE_wpad-openssl=/d' $CFG
+	echo -e "\nCONFIG_PACKAGE_wpad-openssl=y\n" >> $CFG
+fi
+
 NETPORTSDIR=$XDIR/package/addons/luci-app-tn-netports/root/etc/config
 if [ -d $NETPORTSDIR ]; then
 	rm -f $NETPORTSDIR/luci_netports
