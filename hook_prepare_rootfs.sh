@@ -82,6 +82,12 @@ if [ -f "$DIS_SVC_FN" ]; then
 	done
 fi
 
+NEXTDNSCFG="$ROOTFSDIR/etc/config/nextdns"
+if [ -f "$NEXTDNSCFG" ]; then
+	sed -i "s/option enabled '1'/option enabled '0'/g" "$NEXTDNSCFG"
+	log_msg "Service 'nextdns' disabled."
+fi
+
 IS_SNAPSHOT=false
 if echo "$FULL_VERSION" | grep snapshot >/dev/null ; then
 	IS_SNAPSHOT=true
