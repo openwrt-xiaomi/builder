@@ -140,6 +140,17 @@ if [ -f $FANT_PKG_KEY ]; then
 	logmsg "Added support of Fantastic packages [https://fantastic-packages.github.io/packages]"
 fi
 
+SYSCTLCONF_FN=$XDIR/files/etc/sysctl.conf
+if [ -f $SYSCTLCONF_FN ]; then
+	rm -f $SYSCTLCONF_FN
+fi
+kmod_nf_nathelper_extra=$( get_cfg_pkg_flag $XDIR/__current.config kmod-nf-nathelper-extra )
+if [ "$kmod_nf_nathelper_extra" = y ]; then
+	[ ! -d $XDIR/files ] && mkdir -p $XDIR/files/etc
+	echo "" >> $SYSCTLCONF_FN
+	echo net.netfilter.nf_conntrack_helper=1 >> $SYSCTLCONF_FN
+fi
+
 if [ -z "$MAKE_JOBS" ]; then
 	MAKE_JOBS=$( grep processor /proc/cpuinfo | tail -n 1 | awk '{print $3}' )
 fi
