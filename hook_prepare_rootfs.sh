@@ -39,7 +39,12 @@ die() {
 get_param_q() {
 	local param=$1
 	local filename="$2"
-	echo $( grep -o -P "(?<=^$param=').*(')" "$filename" 2>/dev/null )
+	echo $( grep -o -P "^$param='\K[^']+" "$filename" 2>/dev/null )
+	#echo $( grep -o -P "(?<=^$param=').*(')" "$filename" 2>/dev/null )
+}
+
+del_last_word() {
+	echo -n "${@:1:$#-1}"
 }
 
 
@@ -61,6 +66,17 @@ FULL_VERSION=$( get_param_q DISTRIB_RELEASE "$FW_VER_FN" )
 if [ -z "$FULL_VERSION" ]; then
 	die "Firmware version not found!"
 fi
+
+FULL_VERSION=$( grep -oP "^DISTRIB_RELEASE='\K[^']+" "$FW_VER_FN" 2>/dev/null )
+DISTR_DESC=$( grep -oP "^DISTRIB_DESCRIPTION='\K[^']+" "$FW_VER_FN" 2>/dev/null )
+DISTR_DATE_LEN=$( echo -n "$DISTR_DESC" | awk '{print $NF}' | tr -d '\n' | wc -c )
+if [ "$DISTR_DATE_LEN" = 6 ]; then
+	DISTR_DESC=$( del_last_word $DISTR_DESC )
+fi
+sed -i "/DISTRIB_DESCRIPTION=/d" "$FW_VER_FN"
+CURDATE=$( date --utc +%y%m%d | tr -d '\n' )
+echo "DISTRIB_DESCRIPTION='$DISTR_DESC $CURDATE'" >> "$FW_VER_FN"
+log_msg "Option DISTRIB_DESCRIPTION patched (DATE = $CURDATE)"
 
 FW_ARCH=$( get_param_q DISTRIB_ARCH "$FW_VER_FN" )
 #log_msg "FW_ARCH: '$FW_ARCH'"
