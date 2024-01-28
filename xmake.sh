@@ -94,6 +94,12 @@ if [ "$TARGET_INITRAMFS_FORCE" = y ]; then
 	sed -i '/CONFIG_TARGET_ROOTFS_INITRAMFS_SEPARATE=y/d' $CFG
 fi
 
+if [ "$TARGET_INITRAMFS_FORCE" = y ]; then
+	sed -i '/_DEFAULT_ipq-wifi-/d' $CFG
+	sed -i '/_PACKAGE_ipq-wifi-/d' $CFG
+	sed -i '/_PACKAGE_ath11k-firmware-/d' $CFG
+fi
+
 wpad_openssl=$( get_cfg_pkg_flag $XDIR/__current.config wpad-openssl )
 if [ "$wpad_openssl" = y ]; then
 	logmsg "Forced using wpad-openssl !!!"
