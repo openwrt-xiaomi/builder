@@ -24,8 +24,10 @@ done
 if echo "$XTARGET" | grep -E '[ "]' >/dev/null ;then
 	die "Target config filename cannot contain spaces!"
 fi
-TARGETCFG=$XDIR/$XTARGET.config
-[ ! -f $TARGETCFG ] && die "File '$XTARGET.config' not found!"
+TARGETCFG=$XDIR/$XTARGET
+XTARGET_EXT="${XTARGET##*.}"
+[ $XTARGET_EXT != config ] && TARGETCFG=$TARGETCFG.config
+[ ! -f $TARGETCFG ] && die "File '"`basename $TARGETCFG`"' not found!"
 
 CFG=$XDIR/.config
 
