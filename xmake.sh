@@ -12,6 +12,7 @@ fi
 MAKE_JOBS=
 XTARGET=
 OPT_FULL_REBUILD=false
+KALLSYMS=false
 BUILD_ONLY_INITRAMFS=false
 BUILD_SKIP_INITRAMFS=false
 
@@ -20,8 +21,9 @@ while getopts "j:t:fis" opt; do
 		j) MAKE_JOBS=$OPTARG;;
 		t) XTARGET=$OPTARG;;
 		f) OPT_FULL_REBUILD=true;;
+		k) KALLSYMS=true;;
 		i) BUILD_ONLY_INITRAMFS=true;;
-		s) BUILD_SKIP_INITRAMFS=true;;		
+		s) BUILD_SKIP_INITRAMFS=true;;
 	esac
 done
 
@@ -30,6 +32,12 @@ done
 if echo "$XTARGET" | grep -E '[ "]' >/dev/null ;then
 	die "Target config filename cannot contain spaces!"
 fi
+
+CUR_BRANCH=$( git rev-parse --abbrev-ref HEAD )
+if [ "$CUR_BRANCH" = master ]; then
+	KALLSYMS=true
+fi 
+
 
 function clean_all {
 	local cfg=$XDIR/.config
@@ -82,6 +90,10 @@ function build_target {
 			sed -i '/CONFIG_PACKAGE_xray-core=/d' $CFG
 			sed -i 's/ +xray-core / /g' $LUCI_XRAY_MK
 		fi
+	fi
+	
+	if [ "$KALLSYMS" = true ]; then
+		echo "CONFIG_KERNEL_KALLSYMS=y" >> $CFG
 	fi
 
 	if [ 1 = 1 ]; then
