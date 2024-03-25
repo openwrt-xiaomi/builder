@@ -13,15 +13,17 @@ MAKE_JOBS=
 XTARGET=
 OPT_FULL_REBUILD=false
 KALLSYMS=false
+TESTING_KERNEL=false
 BUILD_ONLY_INITRAMFS=false
 BUILD_SKIP_INITRAMFS=false
 
-while getopts "j:t:fis" opt; do
+while getopts "j:t:fiskT" opt; do
 	case $opt in
 		j) MAKE_JOBS=$OPTARG;;
 		t) XTARGET=$OPTARG;;
 		f) OPT_FULL_REBUILD=true;;
 		k) KALLSYMS=true;;
+		T) TESTING_KERNEL=true;;
 		i) BUILD_ONLY_INITRAMFS=true;;
 		s) BUILD_SKIP_INITRAMFS=true;;
 	esac
@@ -94,6 +96,9 @@ function build_target {
 	
 	if [ "$KALLSYMS" = true ]; then
 		echo "CONFIG_KERNEL_KALLSYMS=y" >> $CFG
+	fi
+	if [ "$TESTING_KERNEL" = true ]; then
+		echo "CONFIG_TESTING_KERNEL=y" >> $CFG
 	fi
 
 	if [ 1 = 1 ]; then
