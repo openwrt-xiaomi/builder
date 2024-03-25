@@ -153,15 +153,6 @@ function build_target {
 		echo -e "\nCONFIG_PACKAGE_wpad-openssl=y\n" >> $CFG
 	fi
 
-	NETPORTSDIR=$XDIR/package/addons/luci-app-tn-netports/root/etc/config
-	if [ -d $NETPORTSDIR ]; then
-		rm -f $NETPORTSDIR/luci_netports
-		TARGET_NETPORTS=$XDIR/$XTARGET.netports
-		if [ -f $TARGET_NETPORTS ]; then
-			cp -f $TARGET_NETPORTS $NETPORTSDIR/luci_netports
-		fi
-	fi
-
 	DASHBRDPO=$XDIR/feeds/luci/modules/luci-mod-dashboard/po/ru/dashboard.po
 	if [ -f $DASHBRDPO ]; then
 		sed -i 's/msgid "Dashboard"/msgid "__dash_board__"/g' $DASHBRDPO
