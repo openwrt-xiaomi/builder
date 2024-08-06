@@ -157,6 +157,11 @@ function build_target {
 	if [ -f $DASHBRDPO ]; then
 		sed -i 's/msgid "Dashboard"/msgid "__dash_board__"/g' $DASHBRDPO
 	fi
+	
+	LUCI_CFG=$XDIR/package/feeds/luci/luci-base/root/etc/config/luci
+	if [ -f $LUCI_CFG ]; then
+		sed -i 's/option lang auto/option lang en/g' $LUCI_CFG
+	fi
 
 	OPKG_DIR=$XDIR/files/etc/opkg
 	if [ -d $OPKG_DIR ]; then
