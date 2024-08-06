@@ -116,6 +116,13 @@ function build_target {
 			sed -i 's/ squashfs-sys/ sys/g' $XDIR/target/linux/mediatek/image/mt7622.mk
 			sed -i 's/ squashfs-sys/ sys/g' $XDIR/target/linux/mediatek/image/mt7623.mk
 		fi
+	fi	
+	
+	AWG_LUCI_MK=$XDIR/package/feeds/_ruantiblock/luci-app-ruantiblock/Makefile
+	if [ -f $AWG_LUCI_MK ]; then
+		if ! grep "PKG_PROVIDES" $AWG_LUCI_MK >/dev/null ; then
+			sed -i 's/LUCI_PKGARCH:=all/LUCI_PKGARCH:=all\nPKG_PROVIDES:=luci-app-ruantiblock/g' $AWG_LUCI_MK
+		fi
 	fi
 
 	make defconfig
