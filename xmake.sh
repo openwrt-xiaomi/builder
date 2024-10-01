@@ -160,7 +160,8 @@ function build_target {
 		echo -e "\nCONFIG_PACKAGE_wpad-openssl=y\n" >> $CFG
 	fi
 
-	DASHBRDPO=$XDIR/feeds/luci/modules/luci-mod-dashboard/po/ru/dashboard.po
+	#DASHBRDPO=$XDIR/feeds/luci/modules/luci-mod-dashboard/po/ru/dashboard.po
+	DASHBRDPO=$XDIR/package/feeds/luci/luci-mod-dashboard/po/ru/dashboard.po
 	if [ -f $DASHBRDPO ]; then
 		sed -i 's/msgid "Dashboard"/msgid "__dash_board__"/g' $DASHBRDPO
 	fi
