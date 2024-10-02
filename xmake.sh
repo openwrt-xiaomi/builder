@@ -170,6 +170,12 @@ function build_target {
 	if [ -f $LUCI_CFG ]; then
 		sed -i 's/option lang auto/option lang en/g' $LUCI_CFG
 	fi
+	
+	LUCISTATCONF=$XDIR/package/feeds/luci/luci-app-statistics/root/etc/config/luci_statistics
+	if [ -f $LUCISTATCONF ]; then
+		sed -i "/config statistics 'collectd_sensors'/{n; s/option enable '0'/option enable '1'/}" $LUCISTATCONF
+		sed -i "/config statistics 'collectd_thermal'/{n; s/option enable '0'/option enable '1'/}" $LUCISTATCONF
+	fi
 
 	OPKG_DIR=$XDIR/files/etc/opkg
 	if [ -d $OPKG_DIR ]; then
