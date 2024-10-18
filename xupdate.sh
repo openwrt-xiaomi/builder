@@ -62,6 +62,61 @@ if is_nss_repo "$XDIR"; then
 	done
 fi
 
+FULL_VERSION=$( grep '^VERSION_NUMBER:=$(if' $XDIR/include/version.mk 2>/dev/null )
+[ -z "$FULL_VERSION" ] && { echo "ERROR: Cannot find VERSION_NUMBER"; exit 1; }
+FULL_VERSION=$( echo $FULL_VERSION | cut -d"," -f3 | cut -d")" -f1 )
+echo 'FULL_VERSION = "'$FULL_VERSION'"'
+CUR_VER=
+CUR_SNAPSHOT=
+if [ "$FULL_VERSION" = "SNAPSHOT" ]; then
+	CUR_SNAPSHOT=1
+	echo "SNAPSHOT detected."
+else 
+	if ! echo "$FULL_VERSION" | grep -q "." ; then
+		echo "ERROR: Incorrect branch version!"
+		exit 13
+	fi
+	CUR_VER=${FULL_VERSION:0:5}
+	VER_DELIM=${FULL_VERSION:5:1}
+	if [ "$VER_DELIM" = "-" ]; then
+		CUR_SNAPSHOT=$CUR_VER
+		echo "snapshot detected."
+	fi
+fi
+echo 'CUR_VER = "'$CUR_VER'"'
+
+function update_feed_head()
+{
+	local FEEDNAME=$1
+	local FEEDURL=$2
+	local FEEDHEADLIST="$XDIR/feed_$FEEDNAME.list"
+	
+	git ls-remote -h $FEEDURL > $FEEDHEADLIST
+	HEADHASH=$( grep "refs/heads/openwrt-$CUR_VER" $FEEDHEADLIST 2>/dev/null )
+	if [ -z "$HEADHASH" ]; then
+		echo "ERROR: Not found branch refs/heads/openwrt-$CUR_VER for feed $FEEDNAME"
+		exit 17
+	fi
+	HEADHASH=$( echo $HEADHASH | cut -d" " -f1 )
+	echo "For feed '$FEEDNAME' founded fresh hash = $HEADHASH"
+	# src-git packages https://git.openwrt.org/feed/packages.git^b5ed85f6e94aa08de1433272dc007550f4a28201
+	NEWLINE="src-git $FEEDNAME $FEEDURL^$HEADHASH"
+	NEWLINE=$( sed_adapt "$NEWLINE" )
+	sed -i "s/^src-git $FEEDNAME .*/$NEWLINE/g" feeds.conf
+	if ! grep -q "$NEWLINE" "feeds.conf" ; then
+		echo "ERROR: Cannot patch file feeds.conf"
+		exit 18
+	fi
+	echo "Changed URL for feed '$FEEDNAME' = $FEEDURL^$HEADHASH"
+}
+
+if [ "$CUR_SNAPSHOT" != "1" ]; then
+	update_feed_head  packages   https://github.com/openwrt/packages.git
+	update_feed_head  luci       https://github.com/openwrt/luci.git
+	update_feed_head  routing    https://github.com/openwrt/routing.git
+	update_feed_head  telephony  https://github.com/openwrt/telephony.git
+fi
+
 if [ "$OPT_FULL_UPDATE" = "true" ]; then
 	./scripts/feeds update -a
 	./scripts/feeds install -a
@@ -69,7 +124,7 @@ fi
 
 CLONE_ADDONS=true
 if [ "$CLONE_ADDONS" = "true" ]; then
-	mkdir $XADDONSDIR
+	mkdir -p $XADDONSDIR
 	pkg_lst=$( get_cfg_expkg_lst "$ADDONSCFG" )
 	for pkg in $pkg_lst; do
 		value=$( get_cfg_expkg_url "$ADDONSCFG" $pkg )

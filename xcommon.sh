@@ -19,6 +19,12 @@ die() {
 
 #[ ! -d "$XDIR" ] && die "Base directory not defined"
 
+function sed_adapt
+{
+	local str=$( ( echo $1|sed -r 's/([\$\.\*\/\[\\^])/\\\1/g'|sed 's/[]]/\\]/g' )>&1 )
+	echo "$str"
+}
+
 is_nss_repo() {
 	local FN=$1/package/kernel/mac80211/Makefile
 	if [ ! -f "$FN" ]; then
