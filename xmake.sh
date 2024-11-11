@@ -177,6 +177,17 @@ function build_target {
 		sed -i "/config statistics 'collectd_thermal'/{n; s/option enable '0'/option enable '1'/}" $LUCISTATCONF
 	fi
 
+	XWRTDIR=$XDIR/package/feeds/_xwrt_packages
+	if [ -d $XWRTDIR ]; then
+		[ -f $XWRTDIR/natflow/files/hostacl.config ] && sed -i 's/192.168.15./192.168.1./g' $XWRTDIR/natflow/files/hostacl.config
+		[ -f $XWRTDIR/natflow/files/natflow.config ] && sed -i 's/192.168.15./192.168.1./g' $XWRTDIR/natflow/files/natflow.config
+		[ -f $XWRTDIR/lua-ipops/src/ipops.lua      ] && sed -i 's/192.168.15./192.168.1./g' $XWRTDIR/lua-ipops/src/ipops.lua
+		XWRTJSDIR=$XWRTDIR/luci-app-natflow-users/htdocs/luci-static/resources/view
+		[ -f $XWRTJSDIR/network/hostacl.js         ] && sed -i 's/192.168.15./192.168.1./g' $XWRTJSDIR/network/hostacl.js
+		[ -f $XWRTJSDIR/network/natflow-qos.js     ] && sed -i 's/192.168.15./192.168.1./g' $XWRTJSDIR/network/natflow-qos.js
+		[ -f $XWRTJSDIR/system/natflow-users.js    ] && sed -i 's/192.168.15./192.168.1./g' $XWRTJSDIR/system/natflow-users.js
+	fi
+
 	OPKG_DIR=$XDIR/files/etc/opkg
 	if [ -d $OPKG_DIR ]; then
 		rm -rf $OPKG_DIR
