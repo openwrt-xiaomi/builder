@@ -103,11 +103,14 @@ if [ -f "$DIS_SVC_FN" ]; then
 	for svc in $DIS_SVC_LST; do
 		[ -z "$svc" ] && continue
 		svc_xx=$(find "$ROOTFSDIR/etc/rc.d" -maxdepth 1 -name ???$svc -printf 1 -quit)
- 	    if [ -n "$svc_xx" ]; then
+		if [ -n "$svc_xx" ]; then
 			log_msg "Service '$svc' disabled."
 		fi
 		rm -f "$ROOTFSDIR"/etc/rc.d/S??$svc
 		rm -f "$ROOTFSDIR"/etc/rc.d/K??$svc
+		if [ "$svc" = "nextdns" ]; then
+			sed -i 's/nextdns enable/nextdns disable/g' "$ROOTFSDIR/etc/uci-defaults/nextdns"
+		fi
 	done
 fi
 
