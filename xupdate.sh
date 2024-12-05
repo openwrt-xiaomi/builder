@@ -37,7 +37,7 @@ git fetch
 [ "$?" != "0" ] && die "Can't fetch current repository"
 
 git pull --force "origin" &> /dev/null 
-#[ "$?" != "0" ] && die "Can't pull current repository"
+[ "$?" != "0" ] && die "Can't pull current repository"
 
 CUR_BRANCH=$( git rev-parse --abbrev-ref HEAD )
 
@@ -145,7 +145,6 @@ fi
 if [ "$OPT_FULL_UPDATE" = "true" ]; then
 	if [ -f "$XDIR/vermagic_update.sh" ]; then
 		./vermagic_update.sh ipq806x generic
-		./vermagic_update.sh ipq807x generic
 		./vermagic_update.sh qualcommax ipq807x
 		./vermagic_update.sh ramips mt7621
 		./vermagic_update.sh mediatek mt7622
