@@ -186,6 +186,15 @@ function build_target {
 		[ -f $XWRTJSDIR/network/hostacl.js         ] && sed -i 's/192.168.15./192.168.1./g' $XWRTJSDIR/network/hostacl.js
 		[ -f $XWRTJSDIR/network/natflow-qos.js     ] && sed -i 's/192.168.15./192.168.1./g' $XWRTJSDIR/network/natflow-qos.js
 		[ -f $XWRTJSDIR/system/natflow-users.js    ] && sed -i 's/192.168.15./192.168.1./g' $XWRTJSDIR/system/natflow-users.js
+		USERS_MENU=$XWRTDIR/luci-app-natflow-users/root/usr/share/luci/menu.d/luci-app-natflow-users.json
+		if [ -f $USERS_MENU ]; then
+			if grep -q -F '"admin/system/users": {' $USERS_MENU ; then
+				sed -i '/"admin\/system\/users": {/i "admin\/system\/users"  :  {' $USERS_MENU
+				sed -i '/"admin\/system\/users": {/,+2d' $USERS_MENU
+				sed -i '/"admin\/system\/users"  :  {/a "order": 89,' $USERS_MENU
+				sed -i '/"admin\/system\/users"  :  {/a "title": "Users",' $USERS_MENU
+			fi
+		fi
 	fi
 
 	OPKG_DIR=$XDIR/files/etc/opkg
