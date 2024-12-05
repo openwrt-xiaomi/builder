@@ -177,6 +177,19 @@ function build_target {
 		sed -i "/config statistics 'collectd_thermal'/{n; s/option enable '0'/option enable '1'/}" $LUCISTATCONF
 	fi
 
+	if [ 1 = 1 ]; then
+		########### disable some kmod from x-wrt packages ##########
+		sed -i 's/^CONFIG_PACKAGE_kmod-exfat-linux=/###CONFIG_PACKAGE_kmod-exfat-linux=/g' $CFG
+		sed -i 's/^CONFIG_PACKAGE_kmod-qmi-wwan-q=/###CONFIG_PACKAGE_kmod-qmi-wwan-q=/g' $CFG
+		sed -i 's/^CONFIG_PACKAGE_kmod-rtw8852cu=/###CONFIG_PACKAGE_kmod-rtw8852cu=/g' $CFG
+		sed -i 's/^CONFIG_PACKAGE_kmod-rproxy=/###CONFIG_PACKAGE_kmod-rproxy=/g' $CFG
+		sed -i 's/^CONFIG_PACKAGE_kmod-natcap=/###CONFIG_PACKAGE_kmod-natcap=/g' $CFG
+	fi
+
+	sed -i 's/^CONFIG_PACKAGE_base-config-setting=/###CONFIG_PACKAGE_base-config-setting=/g' $CFG
+	sed -i 's/^CONFIG_BASE_CONFIG_SETTING_LUCI_LOGIN=/###CONFIG_BASE_CONFIG_SETTING_LUCI_LOGIN=/g' $CFG
+	sed -i 's/^CONFIG_PACKAGE_base-config-setting-ext4fs=/###CONFIG_PACKAGE_base-config-setting-ext4fs=/g' $CFG
+
 	XWRTDIR=$XDIR/package/feeds/_xwrt_packages
 	if [ -d $XWRTDIR ]; then
 		[ -f $XWRTDIR/natflow/files/hostacl.config ] && sed -i 's/192.168.15./192.168.1./g' $XWRTDIR/natflow/files/hostacl.config
