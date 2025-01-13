@@ -145,16 +145,22 @@ jobs:
           echo "$MAKE_JOBS thread compile"
           ./xmake.sh -m -t $TARGET
           make -j $MAKE_JOBS download world
-          #|| make V=sc
+          # || make V=sc
           DEVICE_NAME=$( grep -so '^CONFIG_TARGET.*DEVICE.*=y' .config | sed -r 's/.*DEVICE_(.*)=y/\1/' )
           BOARD_NAME=$( grep -so '^CONFIG_TARGET_BOARD=.*' .config | cut -d'"' -f2 )
           SUBTARGET_NAME=$( grep -so '^CONFIG_TARGET_SUBTARGET=.*' .config | cut -d'"' -f2 )
-          OUT_DIR=$BUILD_ROOT/bin/$BOARD_NAME/$SUBTARGET_NAME
-          BLD_VER=24.10.0-rc5
+          OUT_DIR=$BUILD_ROOT/bin/targets/$BOARD_NAME/$SUBTARGET_NAME
+          # BLD_VER=24.10.0-rc5
           BLD_VER=$( cat $OUT_DIR/profiles.json | grep -so '"version_number":"[^"]*' | grep -so '[^"]*$' )
+          FILE_DATE=$(date --utc +'%y%m%d')
+          echo "Firmware $BLD_VER [$FILE_DATE] builded!"
           mkdir logs
-          mkdir -p $OUT_DIR
-          echo "$BOARD_NAME $SUBTARGET_NAME $DEVICE_NAME" > "$OUT_DIR/$DEVICE_NAME.txt"
+          # mkdir -p $OUT_DIR
+          # echo "$BOARD_NAME $SUBTARGET_NAME $DEVICE_NAME" > "$OUT_DIR/$DEVICE_NAME.txt"
+          if [ ! -f $OUT_DIR/kernel-debug.tar.zst ]; then
+            echo "File kernel-debug.tar.zst not found!"
+            exit 100
+          fi
           echo "status=success" >> $GITHUB_OUTPUT
           echo "DEVICE_NAME=$DEVICE_NAME" >> $GITHUB_ENV
           echo "BOARD_NAME=$BOARD_NAME" >> $GITHUB_ENV
