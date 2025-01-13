@@ -229,8 +229,7 @@ jobs:
           echo "------------- openwrt*"
           ls -la ./openwrt*
           echo "-------------"
-          #find . -name "*-$BRANCH-*.tar" -exec tar -xvf {} --wildcards '*.*pk' \;
-          find openwrt -mindepth 1 -type d -exec sh -c 'zip -0 ./public/$(basename {}).zip -j {} {}/*' \;
+          find . -mindepth 1 -type d -name 'openwrt-*' -exec sh -c 'zip -0 ./public/$(basename {}).zip -j {} {}/*' \;
           ls -lh ./public/*.zip
 
       - name: Upload assets
