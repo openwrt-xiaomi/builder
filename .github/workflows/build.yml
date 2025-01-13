@@ -115,128 +115,127 @@ jobs:
         run: |
           rsync -avq --exclude=".*" --exclude="$(basename $BUILD_ROOT)" $BLDROOT/ $BUILD_ROOT/
           cd $BUILD_ROOT
+          chmod +x *.sh
           wget https://github.com/fantastic-packages/packages/raw/refs/heads/24.10/keys/usign/53FF2B6672243D28.pub
 
+      - name: Update OpenWrt packages
+        run: |
+          cd $BUILD_ROOT
+          ./xupdate -f
+
+      - name: Build the firmware image
+        id: compile
+        env: 
+          TARGET: ${{ matrix.target }}
+        run: |
+          cd $BUILD_ROOT
+          MAKE_JOBS=$(($(nproc)+1))
+          echo "$MAKE_JOBS thread compile"
+          ./xmake -m -t $TARGET
+          #make -j $MAKE_JOBS download world || make V=sc
+          echo "status=success" >> $GITHUB_OUTPUT
+          grep '^CONFIG_TARGET.*DEVICE.*=y' .config | sed -r 's/.*DEVICE_(.*)=y/\1/' > DEVICE_NAME
+          [ -s DEVICE_NAME ] && echo "DEVICE_NAME=$(cat DEVICE_NAME)" >> $GITHUB_ENV
+          grep '^CONFIG_TARGET_BOARD=.*' .config | cut -d'"' -f2 > BOARD_NAME
+          [ -s BOARD_NAME ] && echo "BOARD_NAME=$(cat BOARD_NAME)" >> $GITHUB_ENV
+          grep '^CONFIG_TARGET_SUBTARGET=.*' .config | cut -d'"' -f2 > SUBTARGET_NAME
+          [ -s SUBTARGET_NAME ] && echo "SUBTARGET_NAME=$(cat SUBTARGET_NAME)" >> $GITHUB_ENV
+          OUT_DIR=$BUILD_ROOT/bin/$BOARD_NAME/$SUBTARGET_NAME
+          echo "OUT_DIR=$OUT_DIR" >> $GITHUB_ENV
+          echo "FILE_DATE=$(date +"%y%m%d")" >> $GITHUB_ENV
+          echo "FILE_TIME=$(date +"%Y%m%d%H%M")" >> $GITHUB_ENV
+          #cat $OUT_DIR/profiles.json | grep -o '"version_number":"[^"]*' | grep -o '[^"]*$' > BLD_VER
+          echo "24.10.0-rc5" > BLD_VER
+          mkdir -p $OUT_DIR
+          echo "$BOARD_NAME $SUBTARGET_NAME $DEVICE_NAME" > "$OUT_DIR/$DEVICE_NAME.txt"
+          echo "BLD_VER=$(cat BLD_VER)" >> $GITHUB_ENV
+
+      - name: Check space usage
+        run: df -hT
+
+      - name: Compress build logs
+        if: always()
+        env:
+          TARGET: ${{ matrix.target }}
+          LOGS_DIR: ${{ env.BUILD_ROOT }}/logs
+        run: |
+          tar -cJvf logs-$TARGET.tar.xz $LOGS_DIR
+
+      - name: Cleanup OUT directory 
+        if: steps.compile.outputs.status == 'success'
+        env:
+          OUT_DIR: ${{ env.OUT_DIR }}
+        run: |
+          cd $OUT_DIR
+          echo "---------------------------"
+          ls -la
+          echo "---------------------------"
+          rm -rf packages
+          rm -f kernel-*
+          rm -f *uImage
+          rm -f *ubi-cleaner*
+          rm -f *-ram-*.bin
+
       - name: Info
-        shell: bash
+        env:
+          OUT_DIR: ${{ env.OUT_DIR }}
         run: |
           echo "---------------------------"
           ls -la
           echo "---------------------------"
           ls -la $BUILD_ROOT
           echo "---------------------------"
-          exit 1
-      
-      - name: Setup ccache
-        uses: actions/cache@v4
+          ls -la $OUT_DIR
+          echo "---------------------------"
+
+      - name: Upload OUT directory
+        uses: actions/upload-artifact@main
+        if: steps.compile.outputs.status == 'success'
         with:
-          path: ${{ matrix.branch == 'openwrt-19.07' && '/home/build/openwrt/.ccache' || '/builder/.ccache' }}
-          key: ccache-${{ matrix.arch }}-${{ matrix.branch }}-${{ github.run_id }}
-          restore-keys: |
-            ccache-${{ matrix.arch }}-${{ matrix.branch }}-
-
-      - name: Build packages
-        id: build
-        working-directory: ${{ matrix.branch == 'openwrt-19.07' && '/home/build/openwrt' || '/builder' }}
-        env:
-          DATE: ${{ needs.check.outputs.date }}
-          SHA: ${{ needs.check.outputs.sha }}
-          ARCH: ${{ matrix.arch }}
-          BRANCH: ${{ matrix.branch }}
-          SIGN_KEY: ${{ secrets.SIGN_PRIVATE_KEY }}
-          CCACHE_DIR: ${{ matrix.branch == 'openwrt-19.07' && '/home/build/openwrt/.ccache' || '/builder/.ccache' }}
-        shell: bash
-        run: |
-          #export PKG_VERSION=$(date --utc -d $DATE +%Y%m%d)
-          #find $GITHUB_WORKSPACE/zapret-openwrt -type d -path '*/package/zapret' -exec cp -vr {} ./package \;
-          cp -vr $GITHUB_WORKSPACE/zapret-openwrt ./package/zapret-openwrt/
-          
-          mv feeds.conf.default feeds.conf
-          sed -i -e 's|base.*\.git|base https://github.com/openwrt/openwrt.git|' feeds.conf
-          sed -i -e 's|packages.*\.git|packages https://github.com/openwrt/packages.git|' feeds.conf
-          sed -i -e 's|luci.*\.git|luci https://github.com/openwrt/luci.git|' feeds.conf
-          
-          ./scripts/feeds update base packages luci
-          ./scripts/feeds install -a
-          
-          make defconfig
-          echo "------------- .config BEG -------------------"
-          cat .config
-          echo "------------- .config END -------------------"
-          
-          PKGLIST=`echo package/zapret-openwrt/{zapret,zapret-tpws,zapret-mdig,zapret-ip2net,luci-app-zapret}/compile`
-          make $PKGLIST V=s CONFIG_CCACHE=1 BUILD_LOG=1
-          
-          find ./bin/packages/*/base -type f ! -regex ".*\(zapret\).*\.[ai]pk$" -delete
-          
-          #echo ">>>>>>> build a repository index to make the output directory usable as local OPKG source"
-          #ln -s `which usign` staging_dir/host/bin/usign
-          #echo "$SIGN_KEY" | base64 -d > key-build
-          #make package/index
-          
-          tar -C ./bin/packages/*/base -cvf $GITHUB_WORKSPACE/pkg-$BRANCH-$ARCH.tar --transform "s|^\./|${BRANCH/openwrt-}/$ARCH/|" --show-transformed-names .
-          ./staging_dir/host/bin/ccache --max-size=10M --show-stats
-
-      - name: Compress build logs
-        if: always()
-        env:
-          ARCH: ${{ matrix.arch }}
-          BRANCH: ${{ matrix.branch }}
-          LOGS_DIR: ${{ matrix.branch == 'openwrt-19.07' && '/home/build/openwrt/logs' || '/builder/logs' }}
-        run: |
-          tar -cJvf logs-$BRANCH-$ARCH.tar.xz $LOGS_DIR
-
-      - name: Upload packages
-        if: steps.build.outcome == 'success'
-        uses: actions/upload-artifact@v4
-        with:
-          name: pkg-${{ matrix.branch }}-${{ matrix.arch }}
-          path: pkg-*.tar
+          name: openwrt-${{ env.BLD_VER }}-${{ env.FILE_DATE }}-${{ env.DEVICE_NAME }}
+          path: ${{ env.OUT_DIR }}
           if-no-files-found: error
 
       - name: Upload build logs
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: logs-${{ matrix.branch }}-${{ matrix.arch }}
+          name: logs-${{ matrix.target }}
           path: logs-*.tar.xz
 
   release:
     needs: [ check, build ]
     permissions:
       contents: write
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     strategy:
       max-parallel: 1
-      matrix:
-        branch: [ 'SNAPSHOT', '23.05' ]
     steps:
       - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
-          pattern: pkg-*
+          pattern: openwrt-*
 
-      - name: Put packages into zip
+      - name: Put images into zip
         env:
-          BRANCH: ${{ matrix.branch }}
           TAG: ${{ needs.check.outputs.tag }}
           DATE: ${{ needs.check.outputs.date }}
         run: |
           mkdir -p public
-          find . -name "*-$BRANCH-*.tar" -exec tar -xvf {} --wildcards '*.*pk' \;
-          find $BRANCH -mindepth 1 -type d -exec sh -c 'zip -0 ./public/zapret_${TAG}_$(basename {}).zip -j {} {}/*' \;
-          ls -lh ./public/*.zip
+          ls -la
+          #find . -name "*-$BRANCH-*.tar" -exec tar -xvf {} --wildcards '*.*pk' \;
+          #find $BRANCH -mindepth 1 -type d -exec sh -c 'zip -0 ./public/zapret_${TAG}_$(basename {}).zip -j {} {}/*' \;
+          #ls -lh ./public/*.zip
 
       - name: Upload assets
         uses: andelf/nightly-release@main
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          BRANCH: ${{ matrix.branch }}
           TAG: ${{ needs.check.outputs.tag }}
         with:
           prerelease: false
-          tag_name: ${{ needs.check.outputs.tag }}-${{ matrix.branch }}
-          name: '${{ needs.check.outputs.tag }} for OpenWrt ${{ matrix.branch }}'
+          tag_name: ${{ needs.check.outputs.tag }}
+          name: '${{ needs.check.outputs.tag }} for OpenWrt'
           body: |
             ${{ needs.check.outputs.url }}: ${{ needs.check.outputs.message }}
           files: ./public/*.zip

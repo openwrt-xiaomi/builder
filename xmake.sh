@@ -16,6 +16,7 @@ KALLSYMS=false
 TESTING_KERNEL=false
 BUILD_ONLY_INITRAMFS=false
 BUILD_SKIP_INITRAMFS=false
+CALL_MAKE=true
 
 while getopts "j:t:fiskT" opt; do
 	case $opt in
@@ -26,6 +27,7 @@ while getopts "j:t:fiskT" opt; do
 		T) TESTING_KERNEL=true;;
 		i) BUILD_ONLY_INITRAMFS=true;;
 		s) BUILD_SKIP_INITRAMFS=true;;
+		m) CALL_MAKE=false;;
 	esac
 done
 
@@ -261,6 +263,8 @@ function build_target {
 
 	#make tools/install -j$make_jobs
 	#make toolchain/install -j$make_jobs
+
+	[ "$CALL_MAKE" = "false" ] && return 0
 
 	make -j $make_jobs download world
 }
