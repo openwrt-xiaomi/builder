@@ -113,7 +113,7 @@ jobs:
           BLDROOT: ${{ github.workspace }}
         shell: bash        
         run: |
-          rsync -av --exclude=".*" $BLDROOT $BUILD_ROOT
+          rsync -avq --exclude=".*" --exclude="$(basename $BUILD_ROOT)" $BLDROOT $BUILD_ROOT
           cd $ $BUILD_ROOT
           wget https://github.com/fantastic-packages/packages/raw/refs/heads/24.10/keys/usign/53FF2B6672243D28.pub
 
