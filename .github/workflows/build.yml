@@ -133,11 +133,11 @@ jobs:
           echo "$MAKE_JOBS thread compile"
           ./xmake.sh -m -t $TARGET
           #make -j $MAKE_JOBS download world || make V=sc
-          DEVICE_NAME=$( grep -q '^CONFIG_TARGET.*DEVICE.*=y' .config | sed -r 's/.*DEVICE_(.*)=y/\1/' )
-          BOARD_NAME=$( grep -q '^CONFIG_TARGET_BOARD=.*' .config | cut -d'"' -f2 )
-          SUBTARGET_NAME=$( grep -q '^CONFIG_TARGET_SUBTARGET=.*' .config | cut -d'"' -f2 )
+          DEVICE_NAME=$( grep -so '^CONFIG_TARGET.*DEVICE.*=y' .config | sed -r 's/.*DEVICE_(.*)=y/\1/' )
+          BOARD_NAME=$( grep -so '^CONFIG_TARGET_BOARD=.*' .config | cut -d'"' -f2 )
+          SUBTARGET_NAME=$( grep -so '^CONFIG_TARGET_SUBTARGET=.*' .config | cut -d'"' -f2 )
           OUT_DIR=$BUILD_ROOT/bin/$BOARD_NAME/$SUBTARGET_NAME
-          #BLD_VER=$( cat $OUT_DIR/profiles.json | grep -q -o '"version_number":"[^"]*' | grep -q -o '[^"]*$' )
+          #BLD_VER=$( cat $OUT_DIR/profiles.json | grep -so '"version_number":"[^"]*' | grep -so '[^"]*$' )
           BLD_VER=24.10.0-rc5
           mkdir logs
           mkdir -p $OUT_DIR
