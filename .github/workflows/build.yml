@@ -121,7 +121,7 @@ jobs:
       - name: Update OpenWrt packages
         run: |
           cd $BUILD_ROOT
-          ./xupdate -f
+          ./xupdate.sh -f
 
       - name: Build the firmware image
         id: compile
@@ -131,7 +131,7 @@ jobs:
           cd $BUILD_ROOT
           MAKE_JOBS=$(($(nproc)+1))
           echo "$MAKE_JOBS thread compile"
-          ./xmake -m -t $TARGET
+          ./xmake.sh -m -t $TARGET
           #make -j $MAKE_JOBS download world || make V=sc
           echo "status=success" >> $GITHUB_OUTPUT
           grep '^CONFIG_TARGET.*DEVICE.*=y' .config | sed -r 's/.*DEVICE_(.*)=y/\1/' > DEVICE_NAME
