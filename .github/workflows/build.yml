@@ -9,7 +9,7 @@ on:
 env:
   REPO_URL: https://github.com/openwrt-xiaomi/openwrt.git
   REPO_BRANCH: xq-24.10
-  BUILD_ROOT: ${{ github.workspace }}
+  BUILD_ROOT: ${{ github.workspace }}/openwrt
   DEPENDENCIES: ${{ github.workspace }}/dependencies-ubuntu.txt
   CUSTOM_FEEDS_SH: ${{ github.workspace }}/custom-feeds.sh
   CUSTOM_PACKAGES_SH: ${{ github.workspace }}/custom-packages.sh
@@ -45,6 +45,7 @@ jobs:
             echo "date=$(date --utc -d $DATE +%Y%m%d)"
             echo "sha=$(gh api repos/$REPO/commits/$BRANCH --jq '.sha[0:7]')"
             echo "url=$(gh api repos/$REPO/commits/$BRANCH --jq '.html_url')"
+            echo "build_root=$BUILD_ROOT"
             echo "message<<EOF"
             gh api repos/$REPO/commits/$BRANCH --jq '.commit.message'
             echo EOF
@@ -85,7 +86,8 @@ jobs:
         env:
           DEBIAN_FRONTEND: noninteractive
         run: |
-          sudo apt-get -qq update && sudo apt-get -qq upgrade
+          #sudo apt-get -qq update && sudo apt-get -qq upgrade
+          sudo apt-get -qq update
           sudo apt-get -qq install $(cat $DEPENDENCIES)
           sudo apt-get -qq autoremove --purge
           sudo apt-get -qq clean
@@ -100,11 +102,20 @@ jobs:
           remove-codeql: true
           remove-docker-images: true
         
-      #- name: Checkout builder
-      #  uses: actions/checkout@main
+      - name: Checkout builder
+        uses: actions/checkout@main
 
       - name: Download OpenWrt sources
         run: git clone --branch $REPO_BRANCH $REPO_URL $BUILD_ROOT
+
+      - name: Init builder
+        env:
+          BLDROOT: ${{ github.workspace }}
+        shell: bash        
+        run: |
+          rsync -av --exclude=".*" $BLDROOT $BUILD_ROOT
+          cd $ $BUILD_ROOT
+          wget https://github.com/fantastic-packages/packages/raw/refs/heads/24.10/keys/usign/53FF2B6672243D28.pub
 
       - name: Info
         shell: bash
