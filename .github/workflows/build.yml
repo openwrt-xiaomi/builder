@@ -81,7 +81,18 @@ jobs:
       fail-fast: false
       matrix:
         target:
+          - kng_re
+          - r3d
+          - r3g
+          - rb03
+          - rb06
           - rd03
+          - rt-ax52
+          - rt-ax57m
+          - rt-ax59u
+          - rt-ax89x
+          - tuf_ax4200
+          - tuf_ax6000
     steps:
       - name: Initialization environment
         env:
@@ -183,10 +194,6 @@ jobs:
           OUT_DIR: ${{ env.OUT_DIR }}
         run: |
           echo "---------------------------"
-          ls -la
-          echo "---------------------------"
-          ls -la $BUILD_ROOT
-          echo "---------------------------"
           ls -la $OUT_DIR
           echo "---------------------------"
 
@@ -224,11 +231,6 @@ jobs:
           DATE: ${{ needs.check.outputs.date }}
         run: |
           mkdir -p public
-          echo "-------------"
-          ls -la
-          echo "------------- openwrt*"
-          ls -la ./openwrt*
-          echo "-------------"
           find . -mindepth 1 -type d -name 'openwrt-*' -exec sh -c 'zip -0 ./public/$(basename {}).zip -j {} {}/*' \;
           ls -lh ./public/*.zip
 
