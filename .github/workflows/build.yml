@@ -154,7 +154,7 @@ jobs:
           BLD_VER=$( cat $OUT_DIR/profiles.json | grep -so '"version_number":"[^"]*' | grep -so '[^"]*$' )
           FILE_DATE=$(date --utc +'%y%m%d')
           echo "Firmware $BLD_VER [$FILE_DATE] builded!"
-          mkdir logs
+          # mkdir -p logs
           # mkdir -p $OUT_DIR
           # echo "$BOARD_NAME $SUBTARGET_NAME $DEVICE_NAME" > "$OUT_DIR/$DEVICE_NAME.txt"
           if [ ! -f $OUT_DIR/kernel-debug.tar.zst ]; then
