@@ -18,7 +18,7 @@ BUILD_ONLY_INITRAMFS=false
 BUILD_SKIP_INITRAMFS=false
 CALL_MAKE=true
 
-while getopts "j:t:fiskT" opt; do
+while getopts "j:t:fiskTm" opt; do
 	case $opt in
 		j) MAKE_JOBS=$OPTARG;;
 		t) XTARGET=$OPTARG;;
