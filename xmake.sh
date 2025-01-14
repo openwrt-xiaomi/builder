@@ -210,6 +210,15 @@ function build_target {
 		fi
 	fi	
 	
+	NTFS3G=$XDIR/package/feeds/packages/ntfs-3g/Makefile
+	if [ -f $NTFS3G ]; then
+		if grep -q -F '$(INSTALL_DIR) $(1)/usr/{bin,sbin}' $NTFS3G ; then
+			sed -i  '/\$(INSTALL_DIR) \$(1)\/usr\/{bin,sbin}/a \\t\$(INSTALL_DIR) \$(1)\/usr\/bin' $NTFS3G
+			sed -i  '/\$(INSTALL_DIR) \$(1)\/usr\/{bin,sbin}/a \\t\$(INSTALL_DIR) \$(1)\/usr\/sbin' $NTFS3G
+			sed -i 's/\$(INSTALL_DIR) \$(1)\/usr\/{bin,sbin}/#\$(INSTALL_DIR) \$(1)\/usr\/__bin_sbin__/g' $NTFS3G
+		fi
+	fi
+
 	OPKG_DIR=$XDIR/files/etc/opkg
 	if [ -d $OPKG_DIR ]; then
 		rm -rf $OPKG_DIR
