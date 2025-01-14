@@ -177,6 +177,19 @@ function build_target {
 		sed -i "/config statistics 'collectd_thermal'/{n; s/option enable '0'/option enable '1'/}" $LUCISTATCONF
 	fi
 
+	if [ 1 = 1 ]; then
+		########### disable some kmod from x-wrt packages ##########
+		sed -i 's/^CONFIG_PACKAGE_kmod-exfat-linux=/###CONFIG_PACKAGE_kmod-exfat-linux=/g' $CFG
+		sed -i 's/^CONFIG_PACKAGE_kmod-qmi-wwan-q=/###CONFIG_PACKAGE_kmod-qmi-wwan-q=/g' $CFG
+		sed -i 's/^CONFIG_PACKAGE_kmod-rtw8852cu=/###CONFIG_PACKAGE_kmod-rtw8852cu=/g' $CFG
+		sed -i 's/^CONFIG_PACKAGE_kmod-rproxy=/###CONFIG_PACKAGE_kmod-rproxy=/g' $CFG
+		sed -i 's/^CONFIG_PACKAGE_kmod-natcap=/###CONFIG_PACKAGE_kmod-natcap=/g' $CFG
+	fi
+
+	sed -i 's/^CONFIG_PACKAGE_base-config-setting=/###CONFIG_PACKAGE_base-config-setting=/g' $CFG
+	sed -i 's/^CONFIG_BASE_CONFIG_SETTING_LUCI_LOGIN=/###CONFIG_BASE_CONFIG_SETTING_LUCI_LOGIN=/g' $CFG
+	sed -i 's/^CONFIG_PACKAGE_base-config-setting-ext4fs=/###CONFIG_PACKAGE_base-config-setting-ext4fs=/g' $CFG
+
 	XWRTDIR=$XDIR/package/feeds/_xwrt_packages
 	if [ -d $XWRTDIR ]; then
 		[ -f $XWRTDIR/natflow/files/hostacl.config ] && sed -i 's/192.168.15./192.168.1./g' $XWRTDIR/natflow/files/hostacl.config
@@ -186,8 +199,17 @@ function build_target {
 		[ -f $XWRTJSDIR/network/hostacl.js         ] && sed -i 's/192.168.15./192.168.1./g' $XWRTJSDIR/network/hostacl.js
 		[ -f $XWRTJSDIR/network/natflow-qos.js     ] && sed -i 's/192.168.15./192.168.1./g' $XWRTJSDIR/network/natflow-qos.js
 		[ -f $XWRTJSDIR/system/natflow-users.js    ] && sed -i 's/192.168.15./192.168.1./g' $XWRTJSDIR/system/natflow-users.js
-	fi
-
+		USERS_MENU=$XWRTDIR/luci-app-natflow-users/root/usr/share/luci/menu.d/luci-app-natflow-users.json
+		if [ -f $USERS_MENU ]; then
+			if grep -q -F '"admin/system/users": {' $USERS_MENU ; then
+				sed -i '/"admin\/system\/users": {/i "admin\/system\/users"  :  {' $USERS_MENU
+				sed -i '/"admin\/system\/users": {/,+2d' $USERS_MENU
+				sed -i '/"admin\/system\/users"  :  {/a "order": 89,' $USERS_MENU
+				sed -i '/"admin\/system\/users"  :  {/a "title": "Users",' $USERS_MENU
+			fi
+		fi
+	fi	
+	
 	OPKG_DIR=$XDIR/files/etc/opkg
 	if [ -d $OPKG_DIR ]; then
 		rm -rf $OPKG_DIR
