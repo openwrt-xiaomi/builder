@@ -1,3 +1,5 @@
+[![Github All Releases](https://img.shields.io/github/downloads/openwrt-xiaomi/builder/total.svg)](https://github.com/openwrt-xiaomi/builder/releases)
+
 # OpenWrt builder
 
 For OpenWrt >= 21.02
