@@ -37,7 +37,7 @@ git fetch
 [ "$?" != "0" ] && die "Can't fetch current repository"
 
 git pull --force "origin" &> /dev/null 
-#[ "$?" != "0" ] && die "Can't pull current repository"
+[ "$?" != "0" ] && die "Can't pull current repository"
 
 CUR_BRANCH=$( git rev-parse --abbrev-ref HEAD )
 
