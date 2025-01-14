@@ -10,9 +10,11 @@ ADDONSNSS=$XDIR/_addons_nss.config
 . ./xcommon.sh
 
 OPT_FULL_UPDATE=false
+USE_GITHUB_SRC=false
 while getopts "f" opt; do
 	case $opt in
 		f) OPT_FULL_UPDATE=true;;
+		g) USE_GITHUB_SRC=true;;
 	esac
 done
 
@@ -46,6 +48,12 @@ git reset --hard origin/$CUR_BRANCH
 
 rm -f feeds.conf
 cp -f feeds.conf.default feeds.conf
+
+if [ "$USE_GITHUB_SRC" = "true" ]; then
+	sed -i -e 's|https://git.openwrt.org/feed/|https://github.com/openwrt/|' feeds.conf
+	sed -i -e 's|https://git.openwrt.org/project/|https://github.com/openwrt/|' feeds.conf
+fi
+
 feed_lst=$( get_cfg_feed_lst "$ADDONSCFG" )
 for feed in $feed_lst; do
 	value=$( get_cfg_feed_url "$ADDONSCFG" $feed )

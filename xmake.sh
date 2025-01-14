@@ -16,8 +16,9 @@ KALLSYMS=false
 TESTING_KERNEL=false
 BUILD_ONLY_INITRAMFS=false
 BUILD_SKIP_INITRAMFS=false
+ONLY_INIT=false
 
-while getopts "j:t:fiskT" opt; do
+while getopts "j:t:fiskTI" opt; do
 	case $opt in
 		j) MAKE_JOBS=$OPTARG;;
 		t) XTARGET=$OPTARG;;
@@ -26,6 +27,7 @@ while getopts "j:t:fiskT" opt; do
 		T) TESTING_KERNEL=true;;
 		i) BUILD_ONLY_INITRAMFS=true;;
 		s) BUILD_SKIP_INITRAMFS=true;;
+		I) ONLY_INIT=true;;
 	esac
 done
 
@@ -261,6 +263,8 @@ function build_target {
 
 	#make tools/install -j$make_jobs
 	#make toolchain/install -j$make_jobs
+
+	[ "$ONLY_INIT" = "true" ] && return 0
 
 	make -j $make_jobs download world
 }
