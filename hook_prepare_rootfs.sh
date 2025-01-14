@@ -43,6 +43,12 @@ get_param_q() {
 	#echo $( grep -o -P "(?<=^$param=').*(')" "$filename" 2>/dev/null )
 }
 
+get_param_qq() {
+	local param=$1
+	local filename="$2"
+	echo $( grep -o -P "^$param=\"\K[^\"]+" "$filename" 2>/dev/null | tr -d '\n' )
+}
+
 del_last_word() {
 	echo -n "${@:1:$#-1}"
 }
@@ -78,6 +84,22 @@ fi
 sed -i "/DISTRIB_DESCRIPTION=/d" "$FW_VER_FN"
 echo "DISTRIB_DESCRIPTION='$DISTR_DESC $CURDATE'" >> "$FW_VER_FN"
 log_msg "Option DISTRIB_DESCRIPTION patched (DATE = $CURDATE)"
+
+FW_OSVER_FN="$ROOTFSDIR/etc/os-release"
+[ ! -f "$FW_OSVER_FN" ] && die "File '/etc/os-release' not found!"
+FW_OSVER2_FN="$ROOTFSDIR/usr/lib/os-release"
+[ ! -f "$FW_OSVER2_FN" ] && die "File '/usr/lib/os-release' not found!"
+BUILD_ID=$( get_param_qq BUILD_ID "$FW_OSVER_FN" )
+PRETTY_NAME=$( get_param_qq PRETTY_NAME "$FW_OSVER_FN" )
+REL_NAME=$( get_param_qq OPENWRT_RELEASE "$FW_OSVER_FN" )
+
+sed -i "s/^BUILD_ID=.*/BUILD_ID=\"[$CURDATE] $BUILD_ID\"/g" "$FW_OSVER_FN"
+sed -i "s/^BUILD_ID=.*/BUILD_ID=\"[$CURDATE] $BUILD_ID\"/g" "$FW_OSVER2_FN"
+log_msg "Option BUILD_ID patched! BUILD_ID = '[$CURDATE] $BUILD_ID'"
+
+sed -i "s/^OPENWRT_RELEASE=.*/OPENWRT_RELEASE=\"$PRETTY_NAME [$CURDATE] $BUILD_ID\"/g" "$FW_OSVER_FN"
+sed -i "s/^OPENWRT_RELEASE=.*/OPENWRT_RELEASE=\"$PRETTY_NAME [$CURDATE] $BUILD_ID\"/g" "$FW_OSVER2_FN"
+log_msg "Option OPENWRT_RELEASE patched! OPENWRT_RELEASE = '$PRETTY_NAME [$CURDATE] $BUILD_ID'"
 
 BANNER_FN="$ROOTFSDIR/etc/banner"
 BANNER_VER=$( grep -F "$DISTR_REV" "$BANNER_FN" 2>/dev/null )
