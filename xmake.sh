@@ -233,11 +233,11 @@ function build_target {
 		cp $FANT_PKG_KEY $OPKG_KEYS_DIR/53ff2b6672243d28
 		OPKG_CFEED_FN=$OPKG_DIR/customfeeds.conf
 		cp $OPKG_SRC_DIR/customfeeds.conf $OPKG_CFEED_FN
+		PKG_LINK="https://fantastic-packages.github.io/packages/releases/<<VER>>/packages/<<ARCH>>"
 		echo "" >> $OPKG_CFEED_FN
-		fant_luci="src/gz  fantastic_packages_luci      https://fantastic-packages.github.io/packages/releases/<<VER>>/packages/<<ARCH>>/luci"
-		echo "$fant_luci" >> $OPKG_CFEED_FN
-		fant_pkgs="src/gz  fantastic_packages_packages  https://fantastic-packages.github.io/packages/releases/<<VER>>/packages/<<ARCH>>/packages"
-		echo "$fant_pkgs" >> $OPKG_CFEED_FN
+		echo "src/gz  fantastic_packages_luci      $PKG_LINK/luci"      >> $OPKG_CFEED_FN
+		echo "src/gz  fantastic_packages_packages  $PKG_LINK/packages"  >> $OPKG_CFEED_FN
+		echo "src/gz  fantastic_packages_special   $PKG_LINK/special"   >> $OPKG_CFEED_FN
 		TARGET_ARCH_PACKAGES=$( get_cfg_opt_value $CFG TARGET_ARCH_PACKAGES )
 		[ -z "$TARGET_ARCH_PACKAGES" ] && die "Cannot find TARGET ARCH"
 		sed -i "s/<<VER>>/24.10/g" $OPKG_CFEED_FN
