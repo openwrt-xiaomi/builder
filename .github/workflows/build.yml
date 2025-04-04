@@ -113,6 +113,7 @@ jobs:
           - kng_re
           - r3d
           - r3g
+          - r3p
           - rb03
           - rb06
           - rd03
@@ -122,6 +123,7 @@ jobs:
           - rt-ax89x
           - tuf_ax4200
           - tuf_ax6000
+          - zen-bt8
     steps:
       - name: Initialization environment
         env:
@@ -244,6 +246,10 @@ jobs:
           rm -f *uImage
           rm -f *ubi-cleaner*
           rm -f *-ram-*.bin
+          rm -f *-preloader*
+          rm -f *-bl31-uboot*
+          rm -f *-initramfs-recovery*
+          rm -f *-bt8-factory.bin
 
       - name: Upload OUT directory
         uses: actions/upload-artifact@main
