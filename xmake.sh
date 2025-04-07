@@ -127,6 +127,15 @@ function build_target {
 		fi
 	fi
 
+	PODKOP_MK=$XDIR/package/feeds/_podkop/podkop/Makefile
+	if [ -f $PODKOP_MK ]; then
+		sed -i 's/+sing-box / /g' $PODKOP_MK
+	fi
+	PODKOP_SH=$XDIR/package/feeds/_podkop/podkop/files/usr/bin/podkop
+	if [ -f $PODKOP_SH ] && ! grep -q '(which sing-box)' $PODKOP_SH ; then
+		sed -i '/,\\"dns_configured\\":/i [ -z "$(which sing-box)" ] && status="not installed"' $PODKOP_SH
+	fi
+
 	make defconfig
 
 	NSS_DRV_PPPOE_ENABLE=$( get_cfg_opt_flag $CFG NSS_DRV_PPPOE_ENABLE )
