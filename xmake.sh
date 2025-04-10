@@ -136,6 +136,16 @@ function build_target {
 		sed -i '/,\\"dns_configured\\":/i [ -z "$(which sing-box)" ] && status="not installed"' $PODKOP_SH
 	fi
 
+	DROPBEAR_MK=$XDIR/package/network/services/dropbear/Makefile
+	if [ -f $DROPBEAR_MK ]; then
+		sed -i 's/^PKG_RELEASE:=.*/PKG_RELEASE:=0/g' $DROPBEAR_MK
+		sed -i '/,CONFIG_DROPBEAR_MODERN_ONLY,/d' $DROPBEAR_MK
+		sed -i 's/\tCONFIG_DROPBEAR_MODERN_ONLY/ /g' $DROPBEAR_MK
+		sed -i 's/ CONFIG_DROPBEAR_MODERN_ONLY/ /g' $DROPBEAR_MK
+		sed -i 's/DROPBEAR_DH_GROUP14_SHA1,0/ /g' $DROPBEAR_MK
+		sed -i 's/DROPBEAR_SHA1_HMAC,0/ /g' $DROPBEAR_MK
+	fi
+
 	make defconfig
 
 	NSS_DRV_PPPOE_ENABLE=$( get_cfg_opt_flag $CFG NSS_DRV_PPPOE_ENABLE )
