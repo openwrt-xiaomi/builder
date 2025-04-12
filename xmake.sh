@@ -239,7 +239,20 @@ function build_target {
 			sed -i 's/\$(INSTALL_DIR) \$(1)\/usr\/{bin,sbin}/#\$(INSTALL_DIR) \$(1)\/usr\/__bin_sbin__/g' $NTFS3G
 		fi
 	fi
-
+	
+	XPATCHES=$XDIR/patches
+	for incfn in $XPATCHES/*.patch; do
+		[ ! -f "$incfn" ] && continue
+		inc=`patch -p1 -N -r - < "$incfn"`
+		if [ $? != 0 ]; then
+			if ! echo "$inc" | grep -q "patch detected!  Skipping patch."; then
+				echo "Patch '$(basename $incfn)' FAILED"
+				exit 1
+			fi
+		fi
+		echo "Patch '$(basename $incfn)' result: OK"
+	done
+	
 	OPKG_DIR=$XDIR/files/etc/opkg
 	if [ -d $OPKG_DIR ]; then
 		rm -rf $OPKG_DIR
