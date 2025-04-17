@@ -136,6 +136,23 @@ if [ -f "$DIS_SVC_FN" ]; then
 	done
 fi
 
+WIFI77_FN="$ROOTFSDIR/etc/uci-defaults/77_wireless"
+if [ -f "$WIFI77_FN" ]; then
+	if grep -q 'CONFIG_PACKAGE_MAC80211_ENABLE=y' $TOPDIR/.config ; then
+		if grep -q 'CONFIG_PACKAGE_MAC80211_PASSWORD="' $TOPDIR/.config ; then
+			sed -i "s#%ENABLE%#y#g" "$WIFI77_FN"
+			WIFI_SSID=$( get_param_qq CONFIG_PACKAGE_MAC80211_SSID "$TOPDIR/.config" )
+			sed -i "s#%SSID%#${WIFI_SSID}#g" "$WIFI77_FN"
+			WIFI_ENCRYPTION=$( get_param_qq CONFIG_PACKAGE_MAC80211_ENCRYPTION "$TOPDIR/.config" )
+			sed -i "s#%ENCRYPTION%#${WIFI_ENCRYPTION}#g" "$WIFI77_FN"
+			WIFI_PASSWORD=$( get_param_qq CONFIG_PACKAGE_MAC80211_PASSWORD "$TOPDIR/.config" )
+			sed -i "s#%KEY%#${WIFI_PASSWORD}#g" "$WIFI77_FN"
+			WIFI_COUNTRY=$( get_param_qq CONFIG_PACKAGE_MAC80211_COUNTRY "$TOPDIR/.config" )
+			sed -i "s#%COUNTRY%#${WIFI_COUNTRY}#g" "$WIFI77_FN"
+		fi
+	fi
+fi
+
 NEXTDNSCFG="$ROOTFSDIR/etc/config/nextdns"
 if [ -f "$NEXTDNSCFG" ]; then
 	sed -i "s/option enabled '1'/option enabled '0'/g" "$NEXTDNSCFG"
