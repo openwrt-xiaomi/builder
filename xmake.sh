@@ -130,6 +130,7 @@ function build_target {
 	PODKOP_MK=$XDIR/package/feeds/_podkop/podkop/Makefile
 	if [ -f $PODKOP_MK ]; then
 		sed -i 's/+sing-box / /g' $PODKOP_MK
+		sed -i 's/CONFLICTS:=.*/CONFLICTS:=/g' $PODKOP_MK
 	fi
 	PODKOP_SH=$XDIR/package/feeds/_podkop/podkop/files/usr/bin/podkop
 	if [ -f $PODKOP_SH ] && ! grep -q '(which sing-box)' $PODKOP_SH ; then
