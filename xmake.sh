@@ -127,6 +127,13 @@ function build_target {
 		fi
 	fi
 
+	AWG_KMOD_MK=$XDIR/package/feeds/_amneziawg/kmod-amneziawg/Makefile
+	if [ -f $AWG_KMOD_MK ]; then
+		if grep "876bf7571e47e349d0e86b70c244330b470d9642" $AWG_KMOD_MK >/dev/null ; then
+			sed -i 's/PKG_SOURCE_VERSION:=876bf7571e47e349d0e86b70c244330b470d9642/PKG_SOURCE_VERSION:=b96e12d00112dbee9d51d18d8438aa991cec0f6a/g' $AWG_KMOD_MK
+		fi
+	fi
+
 	PODKOP_MK=$XDIR/package/feeds/_podkop/podkop/Makefile
 	if [ -f $PODKOP_MK ]; then
 		sed -i 's/+sing-box / /g' $PODKOP_MK
