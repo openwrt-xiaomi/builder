@@ -27,6 +27,7 @@ if [ "$OPT_FULL_UPDATE" = "true" ]; then
 	#rm -rf feeds
 	#rm -rf package/feeds
 	rm -rf staging_dir/packages
+	rm -rf feeds/_*
 	rm -rf $XADDONSDIR
 fi
 
