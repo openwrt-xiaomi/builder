@@ -21,8 +21,8 @@ env:
   FAKE_BUILD: ${{ github.event.inputs.fake_build }}
   REPO_URL: https://github.com/openwrt-xiaomi/openwrt
   REPO_LNK: openwrt-xiaomi/openwrt
-  REPO_BRANCH: xq-24.10
-  TAG_PREFIX: v24-
+  REPO_BRANCH: xq-25.10
+  TAG_PREFIX: v25-
   BUILD_ROOT: ${{ github.workspace }}/openwrt
   DEPENDENCIES: ${{ github.workspace }}/dependencies-ubuntu.txt
   TZ: UTC
@@ -159,7 +159,7 @@ jobs:
           rsync -avq --exclude=".*" --exclude="$(basename $BUILD_ROOT)" $BLDROOT/ $BUILD_ROOT/
           cd $BUILD_ROOT
           chmod +x *.sh
-          wget https://github.com/fantastic-packages/packages/raw/refs/heads/24.10/keys/usign/53FF2B6672243D28.pub
+          wget https://github.com/fantastic-packages/packages/raw/refs/heads/25.12/keys/usign/53FF2B6672243D28.pub
 
       - name: Update OpenWrt packages
         id: update
