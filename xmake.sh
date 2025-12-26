@@ -280,7 +280,7 @@ function build_target {
 		echo "src/gz  fantastic_packages_special   $PKG_LINK/special"   >> $OPKG_CFEED_FN
 		TARGET_ARCH_PACKAGES=$( get_cfg_opt_value $CFG TARGET_ARCH_PACKAGES )
 		[ -z "$TARGET_ARCH_PACKAGES" ] && die "Cannot find TARGET ARCH"
-		sed -i "s/<<VER>>/24.10/g" $OPKG_CFEED_FN
+		sed -i "s/<<VER>>/25.12/g" $OPKG_CFEED_FN
 		sed -i "s/<<ARCH>>/$TARGET_ARCH_PACKAGES/g" $OPKG_CFEED_FN
 		logmsg "Added support of Fantastic packages [https://fantastic-packages.github.io/packages]"
 	fi
