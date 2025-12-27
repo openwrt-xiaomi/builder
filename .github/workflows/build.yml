@@ -21,7 +21,7 @@ env:
   FAKE_BUILD: ${{ github.event.inputs.fake_build }}
   REPO_URL: https://github.com/openwrt-xiaomi/openwrt
   REPO_LNK: openwrt-xiaomi/openwrt
-  REPO_BRANCH: xq-25.10
+  REPO_BRANCH: xq-25.12
   TAG_PREFIX: v25-
   BUILD_ROOT: ${{ github.workspace }}/openwrt
   DEPENDENCIES: ${{ github.workspace }}/dependencies-ubuntu.txt
