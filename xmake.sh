@@ -144,8 +144,29 @@ function build_target {
 		sed -i '/,\\"dns_configured\\":/i [ -z "$(which sing-box)" ] && status="not installed"' $PODKOP_SH
 	fi
 
-	DROPBEAR_MK=$XDIR/package/network/services/dropbear/Makefile
+	DROPBEAR_DIR=$XDIR/package/network/services/dropbear
+	TMP_DROPBEAR_DIR=$XDIR/_dropbear2024
 	if [ -f $DROPBEAR_MK ]; then
+		# download dropbear 2024.86 (OpenWrt v24.10)
+		if [ ! -f $TMP_DROPBEAR_DIR/Makefile ]; then
+			rm -rf $TMP_DROPBEAR_DIR
+			git clone --depth 1 --filter=blob:none --sparse https://github.com/openwrt/openwrt.git $TMP_DROPBEAR_DIR && (
+				cd $TMP_DROPBEAR_DIR
+				git sparse-checkout set package/network/services/dropbear
+				git checkout a2f0cd35ac1d15e69f4897b35c049e175dd06825 # commit 2024-12-12 https://github.com/openwrt/openwrt/commits/openwrt-25.12/package/network/services/dropbear
+				mv package/network/services/dropbear/* .
+			)
+			rm -rf $TMP_DROPBEAR_DIR/package
+			rm -rf $TMP_DROPBEAR_DIR/.git
+		fi
+		rm -rf $DROPBEAR_DIR/files
+		rm -rf $DROPBEAR_DIR/patches
+	fi
+	DROPBEAR_MK=$DROPBEAR_DIR/Makefile
+	if [ -f $DROPBEAR_MK ]; then
+		# downgrade dropbear to 2024.86 (OpenWrt v24.10)
+		cp -a $TMP_DROPBEAR_DIR/. $DROPBEAR_DIR/
+		# patch: Disable MODERN and enable RSA/DH-SHA1
 		sed -i 's/^PKG_RELEASE:=.*/PKG_RELEASE:=0/g' $DROPBEAR_MK
 		sed -i '/,CONFIG_DROPBEAR_MODERN_ONLY,/d' $DROPBEAR_MK
 		sed -i 's/\tCONFIG_DROPBEAR_MODERN_ONLY/ /g' $DROPBEAR_MK
