@@ -3,6 +3,19 @@ name: build
 on:
   workflow_dispatch:
     inputs:
+      test_build:
+        description: 'Test build'
+        required: true
+        default: 'false'
+        type: choice
+        options:
+        - true
+        - false
+      target_arch:
+        description: 'Target ARCH'
+        required: false
+        default: 'r3d'
+        type: string
       fake_build:
         description: 'Fake build'
         required: true
@@ -18,7 +31,9 @@ on:
         type: string
 
 env:
-  FAKE_BUILD: ${{ github.event.inputs.fake_build }}
+  TEST_BUILD: ${{ github.event.inputs.test_build == 'true' }}
+  FAKE_BUILD: ${{ github.event.inputs.fake_build == 'true' }}
+  TAG_SUFFIX: ${{ github.event.inputs.fake_build == 'true' && '-fake' || github.event.inputs.test_build == 'true' && '-test' || '' }}
   REPO_URL: https://github.com/openwrt-xiaomi/openwrt
   REPO_LNK: openwrt-xiaomi/openwrt
   REPO_BRANCH: xq-25.12
@@ -124,6 +139,12 @@ jobs:
           - tuf_ax4200
           - tuf_ax6000
           - zen-bt8
+        isTest:
+          - ${{ needs.check.outputs.test_build == 'true' }}
+        exclude:
+          - { isTest: true }
+        include:
+          - target: ${{ github.event.inputs.target_arch }}
     steps:
       - name: Initialization environment
         env:
@@ -193,7 +214,13 @@ jobs:
               exit 41
           fi
           # run build
-          [ "$FAKE_BUILD" != "true" ] && make -j $MAKE_JOBS download world
+          if [ "$FAKE_BUILD" != "true" ]; then
+              if [ "$TEST_BUILD" != "true" ]; then
+                  make -j $MAKE_JOBS download world
+              else
+                  make -j $MAKE_JOBS V=sc download world
+              fi
+          fi
           # process results
           FILE_DATE=$(date --utc +'%y%m%d')
           OUT_DIR=$BUILD_ROOT/bin/targets/$G_BOARD_NAME/$G_SUBTARGET_NAME
@@ -291,8 +318,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ needs.check.outputs.tag }}
         with:
-          prerelease: false
-          tag_name: ${{ needs.check.outputs.tag }}
+          prerelease: ${{ env.TEST_BUILD == 'true' || env.FAKE_BUILD == 'true' }}
+          tag_name: ${{ needs.check.outputs.tag }}${{ env.TAG_SUFFIX }}
           name: '${{ needs.check.outputs.tag }}'
           body: |
             OpenWrt ${{ needs.check.outputs.fw_ver }} [${{ needs.check.outputs.fw_date }}]
