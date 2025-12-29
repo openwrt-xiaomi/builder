@@ -11,8 +11,8 @@ on:
         options:
         - true
         - false
-      target_arch:
-        description: 'Target ARCH'
+      target_name:
+        description: 'Target Name'
         required: false
         default: 'r3d'
         type: string
@@ -32,6 +32,7 @@ on:
 
 env:
   TEST_BUILD: ${{ github.event.inputs.test_build == 'true' }}
+  TARGET_NAME: ${{ github.event.inputs.target_name }}
   FAKE_BUILD: ${{ github.event.inputs.fake_build == 'true' }}
   TAG_SUFFIX: ${{ github.event.inputs.fake_build == 'true' && '-fake' || github.event.inputs.test_build == 'true' && '-test' || '' }}
   REPO_URL: https://github.com/openwrt-xiaomi/openwrt
@@ -60,6 +61,9 @@ jobs:
       fw_date: ${{ steps.gh.outputs.fw_date }}
       fw_ver: ${{ steps.gh.outputs.fw_ver }}
       is_active: ${{ steps.activity.outputs.is_active }}
+      test_build: ${{ env.TEST_BUILD }}
+      target_name: ${{ env.TARGET_NAME }}
+      fake_build: ${{ env.FAKE_BUILD }}
     steps:
       - name: Get repo data via GH API
         id: gh
@@ -144,7 +148,7 @@ jobs:
         exclude:
           - { isTest: true }
         include:
-          - target: ${{ github.event.inputs.target_arch }}
+          - target: ${{ github.event.inputs.target_name }}
     steps:
       - name: Initialization environment
         env:
@@ -188,17 +192,15 @@ jobs:
           cd $BUILD_ROOT && ./xupdate.sh -f
           echo "status=success" >> $GITHUB_OUTPUT
 
-      - name: Build the firmware image
-        id: compile
+      - name: Configure
+        id: configure
         if: steps.update.outputs.status == 'success'
         env: 
           TARGET: ${{ matrix.target }}
           FW_VER: ${{ needs.check.outputs.fw_ver }}
         run: |
-          cd $BUILD_ROOT
-          MAKE_JOBS=$(($(nproc)+1))
-          echo "$MAKE_JOBS thread compile"
-          # init build config
+          cd $BUILD_ROOT && echo "init build config"
+          FILE_DATE=$(date --utc +'%y%m%d')
           ./xmake.sh -I -t $TARGET
           G_DEVICE_NAME=$( grep -so '^CONFIG_TARGET.*DEVICE.*=y' .config | sed -r 's/.*DEVICE_(.*)=y/\1/' )
           [ -z "$G_DEVICE_NAME" ] && exit 31
@@ -213,16 +215,36 @@ jobs:
           if [ $(find . -maxdepth 1 -name "$VERMAGIC_LIST" | wc -l) = "0" ]; then
               exit 41
           fi
-          # run build
+          echo "status=success" >> $GITHUB_OUTPUT
+          echo "G_DEVICE_NAME=$G_DEVICE_NAME" >> $GITHUB_ENV
+          echo "G_BOARD_NAME=$G_BOARD_NAME" >> $GITHUB_ENV
+          echo "G_SUBTARGET_NAME=$G_SUBTARGET_NAME" >> $GITHUB_ENV
+          echo "FILE_DATE=$FILE_DATE" >> $GITHUB_ENV
+
+      - name: Dump .config file
+        run: |
+          echo "====== .config ========="
+          cat $BUILD_ROOT/.config
+          echo "========================"
+   
+      - name: Build the firmware image
+        id: compile
+        if: steps.configure.outputs.status == 'success'
+        env: 
+          TARGET: ${{ matrix.target }}
+          FW_VER: ${{ needs.check.outputs.fw_ver }}
+        run: |
+          cd $BUILD_ROOT
+          MAKE_JOBS=$(($(nproc)+1))
+          echo "$MAKE_JOBS thread compile"
           if [ "$FAKE_BUILD" != "true" ]; then
               if [ "$TEST_BUILD" != "true" ]; then
                   make -j $MAKE_JOBS download world
               else
-                  make -j $MAKE_JOBS V=sc download world
+                  make V=sc download world
               fi
           fi
           # process results
-          FILE_DATE=$(date --utc +'%y%m%d')
           OUT_DIR=$BUILD_ROOT/bin/targets/$G_BOARD_NAME/$G_SUBTARGET_NAME
           if [ "$FAKE_BUILD" = "true" ]; then
               mkdir -p logs
@@ -245,7 +267,6 @@ jobs:
           echo "SUBTARGET_NAME=$G_SUBTARGET_NAME" >> $GITHUB_ENV
           echo "BLD_VER=$BLD_VER" >> $GITHUB_ENV
           echo "OUT_DIR=$OUT_DIR" >> $GITHUB_ENV
-          echo "FILE_DATE=$FILE_DATE" >> $GITHUB_ENV
 
       - name: Check space usage
         run: df -hT
