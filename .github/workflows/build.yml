@@ -162,7 +162,10 @@ jobs:
         run: |
           sudo apt-get -qq update
           #sudo apt-get -qq update && sudo apt-get -qq upgrade
-          sudo apt-get -qq install $(cat $DEPENDENCIES)
+          sudo apt-get -qq install  build-essential gawk flex rsync swig unzip zlib1g-dev file wget
+          sudo apt-get -qq install  libc6-dev clang flex bison g++ gcc-multilib g++-multilib
+          sudo apt-get -qq install  gettext git libncurses5-dev libssl-dev python3-setuptools
+          sudo apt-get -qq install  libc6-dev pkg-config
           sudo apt-get -qq autoremove --purge
           sudo apt-get -qq clean
           sudo timedatectl set-timezone "$TZ"
@@ -236,7 +239,7 @@ jobs:
 
       - name: Download tools and toolchain
         id: tools_download
-        if: steps.configure.outputs.status == 'success'
+        if: false # steps.configure.outputs.status == 'success'
         run: |
           cd $BUILD_ROOT
           G_TARGET_ARCH=$( grep -so '^CONFIG_TARGET_ARCH_PACKAGES=' .config | cut -d'"' -f2 )
