@@ -232,16 +232,27 @@ jobs:
           echo "====== .config ========="
           cat $BUILD_ROOT/.config
           echo "========================"
-   
+
+      - name: Build tools and toolchain
+        id: tools
+        if: steps.configure.outputs.status == 'success'
+        run: |
+          cd $BUILD_ROOT
+          MAKE_JOBS=$(nproc)
+          echo "$MAKE_JOBS thread compile"
+          make tools/install -j$MAKE_JOBS
+          make toolchain/install -j$MAKE_JOBS
+          echo "status=success" >> $GITHUB_OUTPUT
+
       - name: Build the firmware image
         id: compile
-        if: steps.configure.outputs.status == 'success'
+        if: steps.tools.outputs.status == 'success'
         env: 
           TARGET: ${{ matrix.target }}
           FW_VER: ${{ needs.check.outputs.fw_ver }}
         run: |
           cd $BUILD_ROOT
-          MAKE_JOBS=$(($(nproc)+1))
+          MAKE_JOBS=$(nproc)
           echo "$MAKE_JOBS thread compile"
           if [ "$FAKE_BUILD" != "true" -a "$TEST_BUILD" = "true" -a "$PACKAGE_DIR" != "" ]; then
               make $PACKAGE_DIR/compile V=sc BUILD_LOG=1
