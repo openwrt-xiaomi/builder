@@ -322,6 +322,8 @@ function build_target {
 		make_jobs=$( grep processor /proc/cpuinfo | tail -n 1 | awk '{print $3}' )
 	fi
 
+	cp -af $XDIR/.config $XDIR/tmp/.config
+
 	#make tools/install -j$make_jobs
 	#make toolchain/install -j$make_jobs
 
