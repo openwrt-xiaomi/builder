@@ -16,6 +16,11 @@ on:
         required: false
         default: 'r3d'
         type: string
+      package_dir:
+        description: 'Package Dir'
+        required: false
+        default: ''
+        type: string
       fake_build:
         description: 'Fake build'
         required: true
@@ -32,9 +37,10 @@ on:
 
 env:
   TEST_BUILD: ${{ github.event.inputs.test_build == 'true' }}
-  TARGET_NAME: ${{ github.event.inputs.target_name }}
   FAKE_BUILD: ${{ github.event.inputs.fake_build == 'true' }}
   TAG_SUFFIX: ${{ github.event.inputs.fake_build == 'true' && '-fake' || github.event.inputs.test_build == 'true' && '-test' || '' }}
+  TARGET_NAME: ${{ github.event.inputs.target_name }}
+  PACKAGE_DIR: ${{ github.event.inputs.package_dir }}
   REPO_URL: https://github.com/openwrt-xiaomi/openwrt
   REPO_LNK: openwrt-xiaomi/openwrt
   REPO_BRANCH: xq-25.12
@@ -237,6 +243,10 @@ jobs:
           cd $BUILD_ROOT
           MAKE_JOBS=$(($(nproc)+1))
           echo "$MAKE_JOBS thread compile"
+          if [ "$FAKE_BUILD" != "true" -a "$TEST_BUILD" = "true" -a "$PACKAGE_DIR" != "" ]; then
+              make $PACKAGE_DIR/compile V=sc BUILD_LOG=1
+              exit 99
+          fi
           if [ "$FAKE_BUILD" != "true" ]; then
               if [ "$TEST_BUILD" != "true" ]; then
                   make -j $MAKE_JOBS download world
