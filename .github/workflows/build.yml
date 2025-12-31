@@ -290,9 +290,28 @@ jobs:
           make toolchain/install -j$(nproc)
           echo "status=success" >> $GITHUB_OUTPUT
 
+      - name: Save cache for host tools
+        if: ${{ steps.tools.outputs.status == 'success' && github.event.inputs.fake_build != 'true' }}
+        uses: actions/cache@v4
+        with:
+          path: |
+            staging_dir/host
+            build_dir/host
+            staging_dir/hostpkg
+            build_dir/hostpkg
+          key: host-tools-${{ runner.os }}-${{ hashFiles('tools/**') }}
+
+      - name: Save cache for toolchain
+        if: ${{ steps.tools.outputs.status == 'success' && github.event.inputs.fake_build != 'true' }}
+        uses: actions/cache@v4
+        with:
+          path: |
+            staging_dir/toolchain-*
+            build_dir/toolchain-*
+          key: toolchain-${{ env.G_TARGET_ARCH }}-${{ hashFiles('toolchain/**') }}
+
       - name: Kernel compile
         id: kernel
-        continue-on-error: true
         if: ${{ steps.tools.outputs.status == 'success' && github.event.inputs.first_kernel_compile == 'true' && github.event.inputs.fake_build != 'true' }}
         run: |
           make target/linux/compile -j$(nproc)
@@ -300,7 +319,6 @@ jobs:
 
       - name: Build the firmware image
         id: compile
-        continue-on-error: true
         if: steps.tools.outputs.status == 'success'
         env: 
           TARGET: ${{ matrix.target }}
@@ -339,7 +357,7 @@ jobs:
           echo "OUT_DIR=$OUT_DIR" >> $GITHUB_ENV
 
       - name: Mark firmware build failed
-        if: steps.compile.outcome == 'failure'
+        if: false # steps.compile.outcome == 'failure'
         run: |
           echo "Firmware build failed, continuing pipeline"
           echo "FW_BUILD_OK=0" >> $GITHUB_ENV
