@@ -259,9 +259,12 @@ jobs:
       - name: Prepare for use cache of tools and toolchain
         run: |
           echo "G_TARGET_ARCH = $G_TARGET_ARCH"
-          rm -rf staging_dir/
-          rm -rf build_dir/
-
+          mkdir -p staging_dir/host
+          rm -rf /tmp/staging-host
+          mkdir -p /tmp/staging-host
+          cp -a staging_dir/host/* /tmp/staging-host/
+          rm -rf staging_dir/host/*
+    
       - name: Cache host tools
         uses: actions/cache@v4
         with:
@@ -272,6 +275,7 @@ jobs:
             host-tools-${{ runner.os }}-
 
       - name: Cache toolchain
+        if: false
         uses: actions/cache@v4
         with:
           path: staging_dir/toolchain-*
@@ -280,7 +284,13 @@ jobs:
           restore-keys: |
             toolchain-${{ env.G_TARGET_ARCH }}-
 
+      - name: Restore saved host staging
+        run: |
+          cp -af /tmp/staging-host/* staging_dir/host
+          rm -rf /tmp/staging-host
+    
       - name: Increase swap to 16G
+        if: false
         run: |
           free -h
           sudo swapoff -a || true
