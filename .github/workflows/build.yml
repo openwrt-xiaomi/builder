@@ -203,6 +203,7 @@ jobs:
           wget https://github.com/fantastic-packages/packages/raw/refs/heads/25.12/keys/usign/53FF2B6672243D28.pub
 
       - name: Cache downloads (dl)
+        if: false
         uses: actions/cache@v4
         with:
           path: dl
@@ -264,11 +265,7 @@ jobs:
       - name: Cache host tools
         uses: actions/cache@v4
         with:
-          path: |
-            staging_dir/host
-            build_dir/host
-            staging_dir/hostpkg
-            build_dir/hostpkg
+          path: staging_dir/host
           key: host-tools-${{ runner.os }}-${{ hashFiles('tools/**') }}
           restore-keys: |
             host-tools-${{ runner.os }}-
@@ -276,13 +273,11 @@ jobs:
       - name: Cache toolchain
         uses: actions/cache@v4
         with:
-          path: |
-            staging_dir/toolchain-*
-            build_dir/toolchain-*
+          path: staging_dir/toolchain-*
           key: toolchain-${{ env.G_TARGET_ARCH }}-${{ hashFiles('toolchain/**') }}
           restore-keys: |
             toolchain-${{ env.G_TARGET_ARCH }}-
-      
+
       - name: Build tools and toolchain
         id: tools
         if: ${{ steps.configure.outputs.status == 'success' && github.event.inputs.fake_build != 'true' }}
@@ -294,20 +289,14 @@ jobs:
         if: ${{ steps.tools.outputs.status == 'success' && github.event.inputs.fake_build != 'true' }}
         uses: actions/cache@v4
         with:
-          path: |
-            staging_dir/host
-            build_dir/host
-            staging_dir/hostpkg
-            build_dir/hostpkg
+          path: staging_dir/host
           key: host-tools-${{ runner.os }}-${{ hashFiles('tools/**') }}
 
       - name: Save cache for toolchain
         if: ${{ steps.tools.outputs.status == 'success' && github.event.inputs.fake_build != 'true' }}
         uses: actions/cache@v4
         with:
-          path: |
-            staging_dir/toolchain-*
-            build_dir/toolchain-*
+          path: staging_dir/toolchain-*
           key: toolchain-${{ env.G_TARGET_ARCH }}-${{ hashFiles('toolchain/**') }}
 
       - name: Kernel compile
