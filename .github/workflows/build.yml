@@ -193,6 +193,14 @@ jobs:
           chmod +x *.sh
           wget https://github.com/fantastic-packages/packages/raw/refs/heads/25.12/keys/usign/53FF2B6672243D28.pub
 
+      - name: Cache downloads (dl)
+        uses: actions/cache@v4
+        with:
+          path: dl
+          key: dl-${{ hashFiles('feeds.conf.default') }}
+          restore-keys: |
+            dl-
+
       - name: Update OpenWrt packages
         id: update
         run: |
@@ -213,6 +221,8 @@ jobs:
           [ -z "$G_BOARD_NAME" ] && exit 32
           G_SUBTARGET_NAME=$( grep -so '^CONFIG_TARGET_SUBTARGET=.*' .config | cut -d'"' -f2 )
           [ -z "$G_SUBTARGET_NAME" ] && exit 33
+          G_TARGET_ARCH=$( grep -so '^CONFIG_TARGET_ARCH_PACKAGES=' .config | cut -d'"' -f2 )
+          echo "G_TARGET_ARCH=$G_TARGET_ARCH" >> $GITHUB_ENV
           VERMAGIC_LIST="vermagic-$G_BOARD_NAME-$G_SUBTARGET_NAME-*.list"
           if [ $(find . -maxdepth 1 -name "$VERMAGIC_LIST" | wc -l) = "0" ]; then
               ./vermagic_update.sh $G_BOARD_NAME $G_SUBTARGET_NAME
@@ -226,6 +236,7 @@ jobs:
           echo "G_DEVICE_NAME=$G_DEVICE_NAME" >> $GITHUB_ENV
           echo "G_BOARD_NAME=$G_BOARD_NAME" >> $GITHUB_ENV
           echo "G_SUBTARGET_NAME=$G_SUBTARGET_NAME" >> $GITHUB_ENV
+          echo "G_TARGET_ARCH=$G_TARGET_ARCH" >> $GITHUB_ENV
           echo "FILE_DATE=$FILE_DATE" >> $GITHUB_ENV
 
       - name: Dump .config file
@@ -234,12 +245,38 @@ jobs:
           cat .config
           echo "========================"
 
+      - name: Prepare for use cache of tools and toolchain
+        run: |
+          echo "G_TARGET_ARCH=$G_TARGET_ARCH" >> $GITHUB_ENV
+          rm -rf staging_dir/
+          rm -rf build_dir/
+
+      - name: Cache host tools
+        uses: actions/cache@v4
+        with:
+          path: |
+            staging_dir/host
+            build_dir/host
+            staging_dir/hostpkg
+            build_dir/hostpkg
+          key: host-tools-${{ runner.os }}-${{ hashFiles('tools/**') }}
+          restore-keys: |
+            host-tools-${{ runner.os }}-
+
+      - name: Cache toolchain
+        uses: actions/cache@v4
+        with:
+          path: |
+            staging_dir/toolchain-*
+            build_dir/toolchain-*
+          key: toolchain-${{ env.G_TARGET_ARCH }}-${{ hashFiles('toolchain/**') }}
+          restore-keys: |
+            toolchain-${{ env.G_TARGET_ARCH }}-
+      
       - name: Download tools and toolchain
         id: tools_download
         if: false # steps.configure.outputs.status == 'success'
         run: |
-          G_TARGET_ARCH=$( grep -so '^CONFIG_TARGET_ARCH_PACKAGES=' .config | cut -d'"' -f2 )
-          echo "G_TARGET_ARCH=$G_TARGET_ARCH" >> $GITHUB_ENV
           echo "OpenWrt version: $FW_VER"
           SDK_URL_BASE="https://downloads.openwrt.org/releases/${FW_VER}/targets/${G_BOARD_NAME}/${G_SUBTARGET_NAME}"
           echo "Searching SDK at $SDK_URL_BASE"
@@ -310,7 +347,6 @@ jobs:
         id: tools
         if: steps.configure.outputs.status == 'success'
         run: |
-          export CCACHE=1
           make toolchain/install -j$(nproc)
           echo "status=success" >> $GITHUB_OUTPUT
 
@@ -321,7 +357,6 @@ jobs:
           TARGET: ${{ matrix.target }}
         run: |
           echo "Run $(nproc) thread compile"
-          export CCACHE=1
           if [ "$FAKE_BUILD" != "true" -a "$TEST_BUILD" = "true" -a "$PACKAGE_DIR" != "" ]; then
               make $PACKAGE_DIR/compile V=sc BUILD_LOG=1
               exit 99
