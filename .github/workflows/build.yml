@@ -409,6 +409,16 @@ jobs:
         with:
           pattern: openwrt-*
 
+      - name: Check for failed builds
+        run: |
+          echo "Checking for FAILED.txt in openwrt-* directories..."
+          FAILED_DIRS=$( find . -maxdepth 1 -type d -name 'openwrt-*' -exec test -f '{}/FAILED.txt' \; -print )
+          if [ -n "$FAILED_DIRS" ]; then
+            echo "❌ Build failures detected in:"
+            exit 201
+          fi
+          echo "✅ No FAILED.txt found, proceeding to release"
+    
       - name: Put images into zip
         run: |
           mkdir -p public
