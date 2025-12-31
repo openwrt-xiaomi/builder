@@ -278,6 +278,11 @@ jobs:
           restore-keys: |
             toolchain-${{ env.G_TARGET_ARCH }}-
 
+      - name: Monitor memory
+        run: |
+          free -h
+          cat /proc/meminfo
+    
       - name: Build tools and toolchain
         id: tools
         if: ${{ steps.configure.outputs.status == 'success' && github.event.inputs.fake_build != 'true' }}
@@ -305,6 +310,11 @@ jobs:
         run: |
           make target/linux/compile -j$(nproc)
           echo "status=success" >> $GITHUB_OUTPUT
+
+      - name: Monitor memory 2
+        run: |
+          free -h
+          cat /proc/meminfo
 
       - name: Build the firmware image
         id: compile
