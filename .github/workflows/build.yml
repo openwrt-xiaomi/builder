@@ -280,6 +280,16 @@ jobs:
           restore-keys: |
             toolchain-${{ env.G_TARGET_ARCH }}-
 
+      - name: Increase swap to 16G
+        run: |
+          free -h
+          sudo swapoff -a || true
+          sudo rm -f /swapfile
+          sudo fallocate -l 16G /swapfile
+          sudo chmod 600 /swapfile
+          sudo mkswap /swapfile
+          sudo swapon /swapfile
+    
       - name: Monitor memory
         run: |
           echo "Memory and swap:"
@@ -369,6 +379,13 @@ jobs:
       - name: Check space usage
         run: df -hT
 
+      - name: Check OOM error
+        if: failure()
+        run: |
+          dmesg | grep -i -E 'oom|killed process' || true
+          echo "================== Memory ================="
+          free -h
+    
       - name: Compress build logs
         if: always()
         env:
