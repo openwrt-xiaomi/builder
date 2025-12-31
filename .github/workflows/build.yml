@@ -230,8 +230,8 @@ jobs:
           [ -z "$G_BOARD_NAME" ] && exit 32
           G_SUBTARGET_NAME=$( grep -so '^CONFIG_TARGET_SUBTARGET=.*' .config | cut -d'"' -f2 )
           [ -z "$G_SUBTARGET_NAME" ] && exit 33
-          G_TARGET_ARCH=$( grep -so '^CONFIG_TARGET_ARCH_PACKAGES=' .config | cut -d'"' -f2 )
-          echo "G_TARGET_ARCH=$G_TARGET_ARCH" >> $GITHUB_ENV
+          G_TARGET_ARCH=$( grep -so '^CONFIG_TARGET_ARCH_PACKAGES=.*' .config | cut -d'"' -f2 )
+          echo "G_TARGET_ARCH = $G_TARGET_ARCH"
           VERMAGIC_LIST="vermagic-$G_BOARD_NAME-$G_SUBTARGET_NAME-*.list"
           if [ $(find . -maxdepth 1 -name "$VERMAGIC_LIST" | wc -l) = "0" ]; then
               ./vermagic_update.sh $G_BOARD_NAME $G_SUBTARGET_NAME
@@ -256,7 +256,7 @@ jobs:
 
       - name: Prepare for use cache of tools and toolchain
         run: |
-          echo "G_TARGET_ARCH=$G_TARGET_ARCH" >> $GITHUB_ENV
+          echo "G_TARGET_ARCH = $G_TARGET_ARCH"
           rm -rf staging_dir/
           rm -rf build_dir/
 
