@@ -3,6 +3,14 @@ name: build
 on:
   workflow_dispatch:
     inputs:
+      first_kernel_compile:
+        description: 'First kernel compile'
+        required: true
+        default: 'true'
+        type: choice
+        options:
+        - true
+        - false
       test_build:
         description: 'Test build'
         required: true
@@ -36,6 +44,7 @@ on:
         type: string
 
 env:
+  FIRST_KERNEL_COMPILE:  ${{ github.event.inputs.first_kernel_compile == 'true' }}
   TEST_BUILD: ${{ github.event.inputs.test_build == 'true' }}
   FAKE_BUILD: ${{ github.event.inputs.fake_build == 'true' }}
   TAG_SUFFIX: ${{ github.event.inputs.fake_build == 'true' && '-fake' || github.event.inputs.test_build == 'true' && '-test' || '' }}
@@ -273,81 +282,18 @@ jobs:
           restore-keys: |
             toolchain-${{ env.G_TARGET_ARCH }}-
       
-      - name: Download tools and toolchain
-        id: tools_download
-        if: false # steps.configure.outputs.status == 'success'
-        run: |
-          echo "OpenWrt version: $FW_VER"
-          SDK_URL_BASE="https://downloads.openwrt.org/releases/${FW_VER}/targets/${G_BOARD_NAME}/${G_SUBTARGET_NAME}"
-          echo "Searching SDK at $SDK_URL_BASE"
-          SDK_TARBALL=$( curl -s "$SDK_URL_BASE/" | grep -oE 'openwrt-sdk-[^"]+Linux-x86_64\.tar\.(xz|zst)' | head -n1 )
-          if [ -z "$SDK_TARBALL" ]; then
-              echo "ERROR: SDK not found for ${G_BOARD_NAME}/${G_SUBTARGET_NAME}"
-              exit 81
-          fi
-          echo "Found SDK: $SDK_TARBALL"
-          #curl -L --fail --retry 5 --retry-delay 5 --progress-bar -o "$SDK_TARBALL" "$SDK_URL_BASE/$SDK_TARBALL"
-          wget --progress=dot:mega "$SDK_URL_BASE/$SDK_TARBALL"
-          if [[ "$SDK_TARBALL" == *.tar.xz ]]; then
-              tar -xf "$SDK_TARBALL"
-          elif [[ "$SDK_TARBALL" == *.tar.zst ]]; then
-              tar -I zstd -xf "$SDK_TARBALL"
-          else
-              echo "Unknown archive format: $SDK_TARBALL"
-              exit 82
-          fi
-          SDK_DIR=$(tar -tf "$SDK_TARBALL" | head -n1 | cut -d/ -f1)
-          echo "Using SDK dir: $SDK_DIR"
-          rm -rf staging_dir
-          mv "$SDK_DIR/staging_dir" .
-          echo "========= staging_dir =========="
-          ls -l staging_dir
-          echo "================================"
-          #cp -a "$SDK_DIR"/toolchain/* toolchain/ 2>/dev/null || true
-          TOOLS_DIR=staging_dir/host
-          touch $TOOLS_DIR/.prepared
-          TOOLS_STAMP_DIR=$TOOLS_DIR/stamp
-          TOOLS_PKGS=$( 
-            find tools/ -maxdepth 1 -mindepth 1 -type d | while read -r d; do
-                mk="$d/Makefile"
-                [ -f "$mk" ] || continue
-                awk -F':=' '
-                  /^[[:space:]]*PKG_NAME[[:space:]]*:=/ {
-                    v=$2
-                    gsub(/\r/, "", v)
-                    gsub(/^[[:space:]]+/, "", v)
-                    gsub(/[[:space:]]+$/, "", v)
-                    if (v != "") print v
-                  }
-                ' "$mk"
-            done | sort -u
-          )
-          mkdir -p "$TOOLS_STAMP_DIR"
-          echo "Found host tools packages: $TOOLS_PKGS"
-          for pkg in $TOOLS_PKGS; do
-              touch "$TOOLS_STAMP_DIR/.$pkg"_installed
-          done
-          TOOLCHAIN_DIR=$( find staging_dir -maxdepth 1 -type d -name "toolchain-*" )
-          echo "Found toolchain directory: $TOOLCHAIN_DIR"
-          #touch $TOOLCHAIN_DIR/.prepared
-          mkdir -p "$TOOLCHAIN_DIR/stamp"
-          touch $TOOLCHAIN_DIR/stamp/.binutils_installed
-          #touch $TOOLCHAIN_DIR/stamp/.fortify-headers_installed
-          touch $TOOLCHAIN_DIR/stamp/.gcc_final_installed
-          touch $TOOLCHAIN_DIR/stamp/.gcc_initial_installed
-          touch $TOOLCHAIN_DIR/stamp/.gdb_installed
-          #touch $TOOLCHAIN_DIR/stamp/.linux_installed
-          touch $TOOLCHAIN_DIR/stamp/.musl_installed
-          touch $TOOLCHAIN_DIR/stamp/.toolchain_compile
-          echo "Checking cross-compiler..."
-          find staging_dir -name '*gcc' | head -n 10
-          echo "status=success" >> $GITHUB_OUTPUT
-
       - name: Build tools and toolchain
         id: tools
-        if: steps.configure.outputs.status == 'success'
+        if: ${{ steps.configure.outputs.status == 'success' && github.event.inputs.fake_build != 'true' }}
         run: |
           make toolchain/install -j$(nproc)
+          echo "status=success" >> $GITHUB_OUTPUT
+
+      - name: Kernel compile
+        id: kernel
+        if: ${{ steps.tools.outputs.status == 'success' && github.event.inputs.first_kernel_compile == 'true' && github.event.inputs.fake_build != 'true' }}
+        run: |
+          make target/linux/compile -j$(nproc)
           echo "status=success" >> $GITHUB_OUTPUT
 
       - name: Build the firmware image
