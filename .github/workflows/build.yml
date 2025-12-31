@@ -292,6 +292,7 @@ jobs:
     
       - name: Monitor memory
         run: |
+          echo "CPU cores = $(nproc)"
           echo "Memory and swap:"
           sudo free -h
           echo
