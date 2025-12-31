@@ -45,7 +45,6 @@ env:
   REPO_LNK: openwrt-xiaomi/openwrt
   REPO_BRANCH: xq-25.12
   TAG_PREFIX: v25-
-  BUILD_ROOT: ${{ github.workspace }}/openwrt
   DEPENDENCIES: ${{ github.workspace }}/dependencies-ubuntu.txt
   TZ: UTC
   DEVICE_NAME: unknown
@@ -183,22 +182,21 @@ jobs:
         uses: actions/checkout@main
 
       - name: Download OpenWrt sources
-        run: git clone --branch $REPO_BRANCH $REPO_URL.git $BUILD_ROOT
+        run: |
+          git clone --branch $REPO_BRANCH $REPO_URL.git openwrt
+          rm -rf .git
+          rsync -a openwrt/ ./
+          rm -rf openwrt  
 
       - name: Init builder
-        env:
-          BLDROOT: ${{ github.workspace }}
-        shell: bash        
         run: |
-          rsync -avq --exclude=".*" --exclude="$(basename $BUILD_ROOT)" $BLDROOT/ $BUILD_ROOT/
-          cd $BUILD_ROOT
           chmod +x *.sh
           wget https://github.com/fantastic-packages/packages/raw/refs/heads/25.12/keys/usign/53FF2B6672243D28.pub
 
       - name: Update OpenWrt packages
         id: update
         run: |
-          cd $BUILD_ROOT && ./xupdate.sh -f
+          ./xupdate.sh -f
           echo "status=success" >> $GITHUB_OUTPUT
 
       - name: Configure
@@ -208,8 +206,6 @@ jobs:
           TARGET: ${{ matrix.target }}
           FW_VER: ${{ needs.check.outputs.fw_ver }}
         run: |
-          cd $BUILD_ROOT && echo "init build config"
-          FILE_DATE=$(date --utc +'%y%m%d')
           ./xmake.sh -I -t $TARGET
           G_DEVICE_NAME=$( grep -so '^CONFIG_TARGET.*DEVICE.*=y' .config | sed -r 's/.*DEVICE_(.*)=y/\1/' )
           [ -z "$G_DEVICE_NAME" ] && exit 31
@@ -224,6 +220,7 @@ jobs:
           if [ $(find . -maxdepth 1 -name "$VERMAGIC_LIST" | wc -l) = "0" ]; then
               exit 41
           fi
+          FILE_DATE=$(date --utc +'%y%m%d')
           echo "status=success" >> $GITHUB_OUTPUT
           echo "FW_VER=$FW_VER" >> $GITHUB_ENV
           echo "G_DEVICE_NAME=$G_DEVICE_NAME" >> $GITHUB_ENV
@@ -234,14 +231,13 @@ jobs:
       - name: Dump .config file
         run: |
           echo "====== .config ========="
-          cat $BUILD_ROOT/.config
+          cat .config
           echo "========================"
 
       - name: Download tools and toolchain
         id: tools_download
         if: false # steps.configure.outputs.status == 'success'
         run: |
-          cd $BUILD_ROOT
           G_TARGET_ARCH=$( grep -so '^CONFIG_TARGET_ARCH_PACKAGES=' .config | cut -d'"' -f2 )
           echo "G_TARGET_ARCH=$G_TARGET_ARCH" >> $GITHUB_ENV
           echo "OpenWrt version: $FW_VER"
@@ -314,12 +310,8 @@ jobs:
         id: tools
         if: steps.configure.outputs.status == 'success'
         run: |
-          cd $BUILD_ROOT
-          MAKE_JOBS=$(nproc)
-          echo "$MAKE_JOBS thread compile"
           export CCACHE=1
-          make tools/install -j$MAKE_JOBS
-          make toolchain/install -j$MAKE_JOBS
+          make toolchain/install -j$(nproc)
           echo "status=success" >> $GITHUB_OUTPUT
 
       - name: Build the firmware image
@@ -328,9 +320,7 @@ jobs:
         env: 
           TARGET: ${{ matrix.target }}
         run: |
-          cd $BUILD_ROOT
-          MAKE_JOBS=$(nproc)
-          echo "$MAKE_JOBS thread compile"
+          echo "Run $(nproc) thread compile"
           export CCACHE=1
           if [ "$FAKE_BUILD" != "true" -a "$TEST_BUILD" = "true" -a "$PACKAGE_DIR" != "" ]; then
               make $PACKAGE_DIR/compile V=sc BUILD_LOG=1
@@ -338,13 +328,13 @@ jobs:
           fi
           if [ "$FAKE_BUILD" != "true" ]; then
               if [ "$TEST_BUILD" != "true" ]; then
-                  make -j $MAKE_JOBS download world
+                  make -j$(nproc) download world
               else
                   make V=sc download world
               fi
           fi
           # process results
-          OUT_DIR=$BUILD_ROOT/bin/targets/$G_BOARD_NAME/$G_SUBTARGET_NAME
+          OUT_DIR=bin/targets/$G_BOARD_NAME/$G_SUBTARGET_NAME
           if [ "$FAKE_BUILD" = "true" ]; then
               mkdir -p logs
               mkdir -p $OUT_DIR
@@ -375,9 +365,8 @@ jobs:
         env:
           TARGET: ${{ matrix.target }}
           FW_DATE: ${{ needs.check.outputs.fw_date }}
-          LOGS_DIR: ${{ env.BUILD_ROOT }}/logs
         run: |
-          tar -cJvf logs-$TARGET-$FW_DATE.tar.xz $LOGS_DIR
+          tar -cJvf logs-$TARGET-$FW_DATE.tar.xz logs
 
       - name: Cleanup OUT directory 
         if: steps.compile.outputs.status == 'success'
