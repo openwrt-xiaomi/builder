@@ -267,6 +267,7 @@ jobs:
         with:
           path: staging_dir/host
           key: host-tools-${{ runner.os }}-${{ hashFiles('tools/**') }}
+          save-always: true
           restore-keys: |
             host-tools-${{ runner.os }}-
 
@@ -275,34 +276,26 @@ jobs:
         with:
           path: staging_dir/toolchain-*
           key: toolchain-${{ env.G_TARGET_ARCH }}-${{ hashFiles('toolchain/**') }}
+          save-always: true
           restore-keys: |
             toolchain-${{ env.G_TARGET_ARCH }}-
 
       - name: Monitor memory
         run: |
-          free -h
-          cat /proc/meminfo
-    
+          echo "Memory and swap:"
+          sudo free -h
+          echo
+          sudo swapon --show
+          echo
+          echo "Available storage:"
+          sudo df -h
+
       - name: Build tools and toolchain
         id: tools
         if: ${{ steps.configure.outputs.status == 'success' && github.event.inputs.fake_build != 'true' }}
         run: |
           make toolchain/install -j$(nproc)
           echo "status=success" >> $GITHUB_OUTPUT
-
-      - name: Save cache for host tools
-        if: ${{ steps.tools.outputs.status == 'success' && github.event.inputs.fake_build != 'true' }}
-        uses: actions/cache@v4
-        with:
-          path: staging_dir/host
-          key: host-tools-${{ runner.os }}-${{ hashFiles('tools/**') }}
-
-      - name: Save cache for toolchain
-        if: ${{ steps.tools.outputs.status == 'success' && github.event.inputs.fake_build != 'true' }}
-        uses: actions/cache@v4
-        with:
-          path: staging_dir/toolchain-*
-          key: toolchain-${{ env.G_TARGET_ARCH }}-${{ hashFiles('toolchain/**') }}
 
       - name: Kernel compile
         id: kernel
@@ -313,8 +306,13 @@ jobs:
 
       - name: Monitor memory 2
         run: |
-          free -h
-          cat /proc/meminfo
+          echo "Memory and swap:"
+          sudo free -h
+          echo
+          sudo swapon --show
+          echo
+          echo "Available storage:"
+          sudo df -h
 
       - name: Build the firmware image
         id: compile
