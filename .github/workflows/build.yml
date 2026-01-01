@@ -3,6 +3,14 @@ name: build
 on:
   workflow_dispatch:
     inputs:
+      use_cache:
+        description: 'Use cache for host tools'
+        required: true
+        default: 'false'
+        type: choice
+        options:
+        - true
+        - false
       first_kernel_compile:
         description: 'First kernel compile'
         required: true
@@ -12,7 +20,7 @@ on:
         - true
         - false
       test_build:
-        description: 'Test build'
+        description: 'Test build (only spec target) '
         required: true
         default: 'false'
         type: choice
@@ -20,12 +28,12 @@ on:
         - true
         - false
       target_name:
-        description: 'Target Name'
+        description: 'Target Name for test build'
         required: false
         default: 'r3d'
         type: string
       package_dir:
-        description: 'Package Dir'
+        description: 'Package Dir for test build'
         required: false
         default: ''
         type: string
@@ -171,7 +179,7 @@ jobs:
           sudo apt-get -qq update
           #sudo apt-get -qq update && sudo apt-get -qq upgrade
           sudo apt-get -qq install  build-essential gawk flex rsync swig unzip zlib1g-dev file wget
-          sudo apt-get -qq install  libc6-dev clang flex bison g++ gcc-multilib g++-multilib
+          sudo apt-get -qq install  libc6-dev clang bison g++ gcc-multilib g++-multilib
           sudo apt-get -qq install  gettext git libncurses5-dev libssl-dev python3-setuptools
           sudo apt-get -qq install  libc6-dev pkg-config
           sudo apt-get -qq autoremove --purge
@@ -213,15 +221,21 @@ jobs:
 
       - name: Update OpenWrt packages
         id: update
+        env: 
+          USE_CACHE: ${{ github.event.inputs.use_cache }}
         run: |
           ./xupdate.sh -f
           mkdir -p logs
           echo "status=success" >> $GITHUB_OUTPUT
-          rm -rf staging_dir/
-          mkdir -p staging_dir/host
+          echo "USE_CACHE=$USE_CACHE" >> $GITHUB_ENV
+          if [ "$USE_CACHE" = "true" ]; then
+              rm -rf staging_dir/
+              mkdir -p staging_dir/host
+          fi
 
       - name: Restore cache for host tools
         id: tools_cache_restore
+        if: github.event.inputs.use_cache == 'true'
         uses: actions/cache/restore@v4
         with:
           key: host-tools-${{ runner.os }}-${{ needs.check.outputs.fw_ver }}-${{ hashFiles('tools/**') }}
@@ -277,6 +291,13 @@ jobs:
           echo "Available storage:"
           sudo df -h
 
+      - name: Download sources (dl)
+        id: download
+        if: ${{ steps.configure.outputs.status == 'success' && github.event.inputs.fake_build != 'true' }}
+        run: |
+          make -j$(nproc) download
+          echo "status=success" >> $GITHUB_OUTPUT
+
       - name: Build tools and toolchain
         id: tools
         if: ${{ steps.configure.outputs.status == 'success' && github.event.inputs.fake_build != 'true' }}
@@ -284,12 +305,21 @@ jobs:
           make toolchain/install -j$(nproc)
           echo "status=success" >> $GITHUB_OUTPUT
 
-      - name: Save cache for host tools
+      - name: Save cache for host tools (use_cache = true)
         id: tools_cache_save
-        if: steps.tools.outputs.status == 'success' && steps.tools_cache_restore.outputs.cache-hit != 'true'
+        if: steps.tools.outputs.status == 'success' && github.event.inputs.use_cache == 'true' && steps.tools_cache_restore.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4
         with:
           key: ${{ steps.tools_cache_restore.outputs.cache-primary-key }}
+          path: |
+            staging_dir/host
+
+      - name: Save cache for host tools (use_cache = false)
+        id: tools_cache_save_2
+        if: steps.tools.outputs.status == 'success' && github.event.inputs.use_cache != 'true'
+        uses: actions/cache/save@v4
+        with:
+          key: host-tools-${{ runner.os }}-${{ needs.check.outputs.fw_ver }}-${{ hashFiles('tools/**') }}
           path: |
             staging_dir/host
 
@@ -323,9 +353,9 @@ jobs:
           fi
           if [ "$FAKE_BUILD" != "true" ]; then
               if [ "$TEST_BUILD" != "true" ]; then
-                  make -j$(nproc) download world
+                  make -j$(nproc) world
               else
-                  make V=sc download world
+                  make V=sc world
               fi
           fi
           # process results
