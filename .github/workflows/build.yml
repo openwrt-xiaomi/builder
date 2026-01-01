@@ -179,7 +179,7 @@ jobs:
           sudo apt-get -qq update
           #sudo apt-get -qq update && sudo apt-get -qq upgrade
           sudo apt-get -qq install  build-essential gawk flex rsync swig unzip zlib1g-dev file wget
-          sudo apt-get -qq install  libc6-dev clang flex bison g++ gcc-multilib g++-multilib
+          sudo apt-get -qq install  libc6-dev clang bison g++ gcc-multilib g++-multilib
           sudo apt-get -qq install  gettext git libncurses5-dev libssl-dev python3-setuptools
           sudo apt-get -qq install  libc6-dev pkg-config
           sudo apt-get -qq autoremove --purge
@@ -291,6 +291,13 @@ jobs:
           echo "Available storage:"
           sudo df -h
 
+      - name: Download sources (dl)
+        id: download
+        if: ${{ steps.configure.outputs.status == 'success' && github.event.inputs.fake_build != 'true' }}
+        run: |
+          make -j$(nproc) download
+          echo "status=success" >> $GITHUB_OUTPUT
+
       - name: Build tools and toolchain
         id: tools
         if: ${{ steps.configure.outputs.status == 'success' && github.event.inputs.fake_build != 'true' }}
@@ -346,9 +353,9 @@ jobs:
           fi
           if [ "$FAKE_BUILD" != "true" ]; then
               if [ "$TEST_BUILD" != "true" ]; then
-                  make -j$(nproc) download world
+                  make -j$(nproc) world
               else
-                  make V=sc download world
+                  make V=sc world
               fi
           fi
           # process results
