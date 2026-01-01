@@ -282,28 +282,29 @@ function build_target {
 		echo "Patch '$(basename $incfn)' result: OK"
 	done
 	
-	OPKG_DIR=$XDIR/files/etc/opkg
-	if [ -d $OPKG_DIR ]; then
-		rm -rf $OPKG_DIR
+	APK_DIR=$XDIR/files/etc/apk
+	if [ -d $APK_DIR ]; then
+		rm -rf $APK_DIR
 	fi
-	FANT_PKG_KEY=$XDIR/53FF2B6672243D28.pub
+	FANT_PKG_KEY=$XDIR/20241123170031.pub
 	if [ -f $FANT_PKG_KEY ]; then
-		OPKG_SRC_DIR=$XDIR/package/system/opkg/files
-		OPKG_KEYS_DIR=$OPKG_DIR/keys
-		mkdir -p $OPKG_KEYS_DIR
-		cp $FANT_PKG_KEY $OPKG_KEYS_DIR/53ff2b6672243d28
-		OPKG_CFEED_FN=$OPKG_DIR/customfeeds.conf
-		cp $OPKG_SRC_DIR/customfeeds.conf $OPKG_CFEED_FN
-		PKG_LINK="https://fantastic-packages.github.io/packages/releases/<<VER>>/packages/<<ARCH>>"
-		echo "" >> $OPKG_CFEED_FN
-		echo "src/gz  fantastic_packages_luci      $PKG_LINK/luci"      >> $OPKG_CFEED_FN
-		echo "src/gz  fantastic_packages_packages  $PKG_LINK/packages"  >> $OPKG_CFEED_FN
-		echo "src/gz  fantastic_packages_special   $PKG_LINK/special"   >> $OPKG_CFEED_FN
+		APK_SRC_DIR=$XDIR/package/system/apk/files
+		APK_KEYS_DIR=$APK_DIR/keys
+		mkdir -p $APK_KEYS_DIR
+		cp $FANT_PKG_KEY $APK_KEYS_DIR/fantastic-packages-20241123170031.pem
+		APK_CFEED_FN=$APK_DIR/repositories.d/customfeeds.list
+		mkdir -p $APK_DIR/repositories.d
+		cp $APK_SRC_DIR/customfeeds.list $APK_CFEED_FN
+		PKG_LINK="https://fantastic-packages.github.io/releases/<<VER>>/packages/<<ARCH>>"
+		echo "" >> $APK_CFEED_FN
+		echo "$PKG_LINK/luci/packages.adb"      >> $APK_CFEED_FN
+		echo "$PKG_LINK/packages/packages.adb"  >> $APK_CFEED_FN
+		echo "$PKG_LINK/special/packages.adb"   >> $APK_CFEED_FN
 		TARGET_ARCH_PACKAGES=$( get_cfg_opt_value $CFG TARGET_ARCH_PACKAGES )
 		[ -z "$TARGET_ARCH_PACKAGES" ] && die "Cannot find TARGET ARCH"
-		sed -i "s/<<VER>>/25.12/g" $OPKG_CFEED_FN
-		sed -i "s/<<ARCH>>/$TARGET_ARCH_PACKAGES/g" $OPKG_CFEED_FN
-		logmsg "Added support of Fantastic packages [https://fantastic-packages.github.io/packages]"
+		sed -i "s/<<VER>>/25.12/g" $APK_CFEED_FN
+		sed -i "s/<<ARCH>>/$TARGET_ARCH_PACKAGES/g" $APK_CFEED_FN
+		logmsg "Added support of Fantastic packages [https://fantastic-packages.github.io/releases]"
 	fi
 
 	SYSCTLCONF_FN=$XDIR/files/etc/sysctl.conf

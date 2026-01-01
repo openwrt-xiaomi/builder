@@ -199,7 +199,8 @@ jobs:
       - name: Init builder
         run: |
           chmod +x *.sh
-          wget https://github.com/fantastic-packages/packages/raw/refs/heads/25.12/keys/usign/53FF2B6672243D28.pub
+          #wget https://github.com/fantastic-packages/packages/raw/refs/heads/master/keys/apksign/20241123170031.pub
+          wget https://fantastic-packages.github.io/releases/25.12/20241123170031.pub
 
       - name: Cache downloads (dl)
         if: false
