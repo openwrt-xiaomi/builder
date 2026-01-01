@@ -11,14 +11,6 @@ on:
         options:
         - true
         - false
-      first_kernel_compile:
-        description: 'First kernel compile'
-        required: true
-        default: 'true'
-        type: choice
-        options:
-        - true
-        - false
       test_build:
         description: 'Test build (only spec target) '
         required: true
@@ -52,7 +44,6 @@ on:
         type: string
 
 env:
-  FIRST_KERNEL_COMPILE:  ${{ github.event.inputs.first_kernel_compile == 'true' }}
   TEST_BUILD: ${{ github.event.inputs.test_build == 'true' }}
   FAKE_BUILD: ${{ github.event.inputs.fake_build == 'true' }}
   TAG_SUFFIX: ${{ github.event.inputs.fake_build == 'true' && '-fake' || github.event.inputs.test_build == 'true' && '-test' || '' }}
@@ -323,11 +314,11 @@ jobs:
           path: |
             staging_dir/host
 
-      - name: Kernel compile
+      - name: Kernel compile and install
         id: kernel
-        if: ${{ steps.tools.outputs.status == 'success' && github.event.inputs.first_kernel_compile == 'true' && github.event.inputs.fake_build != 'true' }}
+        if: ${{ steps.tools.outputs.status == 'success' && github.event.inputs.fake_build != 'true' }}
         run: |
-          make target/linux/compile -j$(nproc)
+          make target/linux/install -j$(nproc)
           echo "status=success" >> $GITHUB_OUTPUT
 
       - name: Monitor memory 2
@@ -342,7 +333,7 @@ jobs:
 
       - name: Build the firmware image
         id: compile
-        if: steps.tools.outputs.status == 'success'
+        if: steps.tools.outputs.status == 'success' && steps.kernel.outputs.status == 'success'
         env: 
           TARGET: ${{ matrix.target }}
         run: |
