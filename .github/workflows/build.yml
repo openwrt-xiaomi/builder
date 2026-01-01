@@ -224,7 +224,7 @@ jobs:
         id: tools_cache_restore
         uses: actions/cache/restore@v4
         with:
-          key: host-tools-${{ runner.os }}-${{ env.FW_VER }}-${{ hashFiles('tools/**') }}
+          key: host-tools-${{ runner.os }}-${{ needs.check.outputs.fw_ver }}-${{ hashFiles('tools/**') }}
           path: |
             staging_dir/host
 
