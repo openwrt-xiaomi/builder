@@ -202,15 +202,6 @@ jobs:
           #wget https://github.com/fantastic-packages/packages/raw/refs/heads/master/keys/apksign/20241123170031.pub
           wget https://fantastic-packages.github.io/releases/25.12/20241123170031.pub
 
-      - name: Cache downloads (dl)
-        if: false
-        uses: actions/cache@v4
-        with:
-          path: dl
-          key: dl-${{ hashFiles('feeds.conf.default') }}
-          restore-keys: |
-            dl-
-
       - name: Update OpenWrt packages
         id: update
         env: 
@@ -223,6 +214,8 @@ jobs:
           if [ "$USE_CACHE" = "true" ]; then
               rm -rf staging_dir/
               mkdir -p staging_dir/host
+              rm -rf build_dir/
+              mkdir -p build_dir/host
           fi
 
       - name: Restore cache for host tools
@@ -230,9 +223,10 @@ jobs:
         if: github.event.inputs.use_cache == 'true'
         uses: actions/cache/restore@v4
         with:
-          key: host-tools-${{ runner.os }}-${{ needs.check.outputs.fw_ver }}-${{ hashFiles('tools/**') }}
+          key: host-tools-${{ runner.os }}-${{ hashFiles('tools/**') }}
           path: |
             staging_dir/host
+            build_dir/host
 
       - name: Configure
         id: configure
@@ -305,15 +299,17 @@ jobs:
           key: ${{ steps.tools_cache_restore.outputs.cache-primary-key }}
           path: |
             staging_dir/host
+            build_dir/host
 
       - name: Save cache for host tools (use_cache = false)
         id: tools_cache_save_2
         if: steps.tools.outputs.status == 'success' && github.event.inputs.use_cache != 'true'
         uses: actions/cache/save@v4
         with:
-          key: host-tools-${{ runner.os }}-${{ needs.check.outputs.fw_ver }}-${{ hashFiles('tools/**') }}
+          key: host-tools-${{ runner.os }}-${{ hashFiles('tools/**') }}
           path: |
             staging_dir/host
+            build_dir/host
 
       - name: Kernel compile and install
         id: kernel
