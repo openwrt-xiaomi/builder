@@ -217,6 +217,16 @@ jobs:
           ./xupdate.sh -f
           mkdir -p logs
           echo "status=success" >> $GITHUB_OUTPUT
+          rm -rf staging_dir/
+          mkdir -p staging_dir/host
+
+      - name: Restore cache for host tools
+        id: tools_cache_restore
+        uses: actions/cache/restore@v4
+        with:
+          key: host-tools-${{ runner.os }}-${{ env.FW_VER }}-${{ hashFiles('tools/**') }}
+          path: |
+            staging_dir/host
 
       - name: Configure
         id: configure
@@ -256,50 +266,6 @@ jobs:
           cat .config
           echo "========================"
 
-      - name: Prepare for use cache of tools and toolchain
-        run: |
-          echo "G_TARGET_ARCH = $G_TARGET_ARCH"
-          mkdir -p staging_dir/host
-          rm -rf /tmp/staging-host
-          mkdir -p /tmp/staging-host
-          cp -a staging_dir/host/* /tmp/staging-host/
-          rm -rf staging_dir/host/*
-    
-      - name: Cache host tools
-        uses: actions/cache@v4
-        with:
-          path: staging_dir/host
-          key: host-tools-${{ runner.os }}-${{ hashFiles('tools/**') }}
-          save-always: true
-          restore-keys: |
-            host-tools-${{ runner.os }}-
-
-      - name: Cache toolchain
-        if: false
-        uses: actions/cache@v4
-        with:
-          path: staging_dir/toolchain-*
-          key: toolchain-${{ env.G_TARGET_ARCH }}-${{ hashFiles('toolchain/**') }}
-          save-always: true
-          restore-keys: |
-            toolchain-${{ env.G_TARGET_ARCH }}-
-
-      - name: Restore saved host staging
-        run: |
-          cp -af /tmp/staging-host/* staging_dir/host
-          rm -rf /tmp/staging-host
-    
-      - name: Increase swap to 16G
-        if: false
-        run: |
-          free -h
-          sudo swapoff -a || true
-          sudo rm -f /swapfile
-          sudo fallocate -l 16G /swapfile
-          sudo chmod 600 /swapfile
-          sudo mkswap /swapfile
-          sudo swapon /swapfile
-    
       - name: Monitor memory
         run: |
           echo "CPU cores = $(nproc)"
@@ -317,6 +283,15 @@ jobs:
         run: |
           make toolchain/install -j$(nproc)
           echo "status=success" >> $GITHUB_OUTPUT
+
+      - name: Save cache for host tools
+        id: tools_cache_save
+        if: steps.tools.outputs.status == 'success' && steps.tools_cache_restore.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          key: ${{ steps.tools_cache_restore.outputs.cache-primary-key }}
+          path: |
+            staging_dir/host
 
       - name: Kernel compile
         id: kernel
