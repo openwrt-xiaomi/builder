@@ -229,6 +229,17 @@ jobs:
             staging_dir/host
             build_dir/host
 
+      - name: Fix time stamps into restored dirs
+        if: github.event.inputs.use_cache == 'true' && steps.tools_cache_restore.outputs.cache-hit == 'true'
+        run: |
+          touch staging_dir/host/.prepared
+          touch staging_dir/host/.prereq-build
+          touch staging_dir/host/stamp/.* 2>/dev/null
+          find build_dir/host -name ".prepared*"  -exec touch {} +
+          find build_dir/host -name ".configured" -exec touch {} +
+          find build_dir/host -name ".built"      -exec touch {} +
+          touch build_dir/stamp
+
       - name: Inspect restored host tools
         if: github.event.inputs.use_cache == 'true'
         run: |
@@ -299,6 +310,17 @@ jobs:
         run: |
           make -j$(nproc) download
           echo "status=success" >> $GITHUB_OUTPUT
+
+      - name: Fix time stamps into restored dirs
+        if: github.event.inputs.use_cache == 'true' && steps.tools_cache_restore.outputs.cache-hit == 'true'
+        run: |
+          touch staging_dir/host/.prepared
+          touch staging_dir/host/.prereq-build
+          touch staging_dir/host/stamp/.* 2>/dev/null
+          find build_dir/host -name ".prepared*"  -exec touch {} +
+          find build_dir/host -name ".configured" -exec touch {} +
+          find build_dir/host -name ".built"      -exec touch {} +
+          touch build_dir/stamp
 
       - name: Build tools and toolchain
         id: tools
