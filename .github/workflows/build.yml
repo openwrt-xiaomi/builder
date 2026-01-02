@@ -54,6 +54,7 @@ env:
   REPO_BRANCH: xq-25.12
   TAG_PREFIX: v25-
   DEPENDENCIES: ${{ github.workspace }}/dependencies-ubuntu.txt
+  RUNNER_TEMP: ${{ github.workspace }}/_temp
   TZ: UTC
   DEVICE_NAME: unknown
   BUILD_DATE: unknown
@@ -223,10 +224,25 @@ jobs:
         if: github.event.inputs.use_cache == 'true'
         uses: actions/cache/restore@v4
         with:
-          key: host-tools-${{ runner.os }}-${{ hashFiles('tools/**') }}
+          key: host-tools-${{ hashFiles('tools/**') }}
           path: |
             staging_dir/host
             build_dir/host
+
+      - name: Inspect restored host tools
+        if: github.event.inputs.use_cache == 'true'
+        run: |
+          echo "====== staging_dir/host ====="
+          du -sh staging_dir/host || true
+          ls -la staging_dir/host || true
+          echo "====== staging_dir/host/bin ====="
+          du -sh staging_dir/host/bin || true
+          ls -1  staging_dir/host/bin | head -20 || true
+          echo "====== build_dir/host ======="
+          du -sh build_dir/host || true
+          ls -1  build_dir/host | head -20 || true
+          echo "====== path info ========"
+          grep -R "/home/runner" build_dir/host | head
 
       - name: Configure
         id: configure
@@ -306,16 +322,16 @@ jobs:
         if: steps.tools.outputs.status == 'success' && github.event.inputs.use_cache != 'true'
         uses: actions/cache/save@v4
         with:
-          key: host-tools-${{ runner.os }}-${{ hashFiles('tools/**') }}
+          key: host-tools-${{ hashFiles('tools/**') }}
           path: |
             staging_dir/host
             build_dir/host
 
-      - name: Kernel compile and install
+      - name: Kernel compile
         id: kernel
-        if: ${{ steps.tools.outputs.status == 'success' && github.event.inputs.fake_build != 'true' }}
+        if: false # ${{ steps.tools.outputs.status == 'success' && github.event.inputs.fake_build != 'true' }}
         run: |
-          make target/linux/install -j$(nproc)
+          make target/linux/compile -j$(npoc)
           echo "status=success" >> $GITHUB_OUTPUT
 
       - name: Monitor memory 2
@@ -330,12 +346,14 @@ jobs:
 
       - name: Build the firmware image
         id: compile
-        if: steps.tools.outputs.status == 'success' && steps.kernel.outputs.status == 'success'
+        if: steps.tools.outputs.status == 'success'
         env: 
           TARGET: ${{ matrix.target }}
         run: |
           echo "Run $(nproc) thread compile"
           if [ "$FAKE_BUILD" != "true" -a "$TEST_BUILD" = "true" -a "$PACKAGE_DIR" != "" ]; then
+              make target/linux/compile -j$(npoc)
+              echo "=============== BUILD PACKAGE: $PACKAGE_DIR ==============="
               make $PACKAGE_DIR/compile V=sc BUILD_LOG=1
               exit 99
           fi
