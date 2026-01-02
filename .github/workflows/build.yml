@@ -53,8 +53,6 @@ env:
   REPO_LNK: openwrt-xiaomi/openwrt
   REPO_BRANCH: xq-25.12
   TAG_PREFIX: v25-
-  DEPENDENCIES: ${{ github.workspace }}/dependencies-ubuntu.txt
-  RUNNER_TEMP: ${{ github.workspace }}/_temp
   TZ: UTC
   DEVICE_NAME: unknown
   BUILD_DATE: unknown
@@ -186,7 +184,17 @@ jobs:
           remove-haskell: true
           remove-codeql: true
           remove-docker-images: true
-        
+
+      - name: Set fixed workspace
+        env: 
+          GITHUB_WORKSPACE: ${{ github.workspace }}
+        run: |
+          sudo mkdir -p $GITHUB_WORKSPACE/_temp
+          #sudo chown -R $USER:$USER $GITHUB_WORKSPACE
+          echo "GITHUB_WORKSPACE = $GITHUB_WORKSPACE"
+          echo "GITHUB_WORKSPACE=$GITHUB_WORKSPACE" >> $GITHUB_ENV
+          echo "RUNNER_TEMP=$GITHUB_WORKSPACE/_temp" >> $GITHUB_ENV
+          
       - name: Checkout builder
         uses: actions/checkout@main
 
@@ -243,6 +251,8 @@ jobs:
       - name: Inspect restored host tools
         if: github.event.inputs.use_cache == 'true'
         run: |
+          echo "====== openwrt-native.txt ======"
+          cat build_dir/host/pkgconf-*/openwrt-native.txt || true
           echo "====== staging_dir/host ====="
           du -sh staging_dir/host || true
           ls -la staging_dir/host || true
