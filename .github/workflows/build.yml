@@ -327,11 +327,23 @@ jobs:
             staging_dir/host
             build_dir/host
 
+      - name: Configure 2
+        id: configure2
+        if: steps.tools.outputs.status == 'success'
+        env: 
+          TARGET: ${{ matrix.target }}
+        run: |
+          make clean
+          ./xmake.sh -I -t $TARGET
+
       - name: Kernel compile
         id: kernel
         if: false # ${{ steps.tools.outputs.status == 'success' && github.event.inputs.fake_build != 'true' }}
         run: |
           make target/linux/compile -j$(npoc)
+          make target/linux/install -j$(npoc)
+          make target/linux/dtb -j$(npoc)
+          make target/linux/prereq
           echo "status=success" >> $GITHUB_OUTPUT
 
       - name: Monitor memory 2
@@ -359,7 +371,7 @@ jobs:
           fi
           if [ "$FAKE_BUILD" != "true" ]; then
               if [ "$TEST_BUILD" != "true" ]; then
-                  make -j$(nproc) world
+                  make -j$(nproc) download world
               else
                   make V=sc world
               fi
