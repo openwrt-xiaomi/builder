@@ -4,13 +4,18 @@ on:
   workflow_dispatch:
     inputs:
       use_cache:
-        description: 'Use cache for host tools'
+        description: 'Restore cache for host tools'
         required: true
         default: 'false'
         type: choice
         options:
         - true
         - false
+      cache_ver:
+        description: 'Use cache version'
+        required: false
+        default: '0'
+        type: string
       test_build:
         description: 'Test build (only spec target) '
         required: true
@@ -48,7 +53,7 @@ env:
   FAKE_BUILD: ${{ github.event.inputs.fake_build == 'true' }}
   TAG_SUFFIX: ${{ github.event.inputs.fake_build == 'true' && '-fake' || github.event.inputs.test_build == 'true' && '-test' || '' }}
   TARGET_NAME: ${{ github.event.inputs.target_name }}
-  PACKAGE_DIR: ${{ github.event.inputs.package_dir }}
+  G_PKG_DIR: ${{ github.event.inputs.package_dir }}
   REPO_URL: https://github.com/openwrt-xiaomi/openwrt
   REPO_LNK: openwrt-xiaomi/openwrt
   REPO_BRANCH: xq-25.12
@@ -213,26 +218,41 @@ jobs:
 
       - name: Update OpenWrt packages
         id: update
-        env: 
-          USE_CACHE: ${{ github.event.inputs.use_cache }}
         run: |
           ./xupdate.sh -f
           mkdir -p logs
           echo "status=success" >> $GITHUB_OUTPUT
-          echo "USE_CACHE=$USE_CACHE" >> $GITHUB_ENV
+          
+      - name: Prepare for cache
+        id: cache_prepare
+        env: 
+          TARGET: ${{ matrix.target }}
+          USE_CACHE: ${{ github.event.inputs.use_cache }}
+          CACHE_VER: ${{ github.event.inputs.cache_ver }}
+        run: |
           if [ "$USE_CACHE" = "true" ]; then
               rm -rf staging_dir/
               mkdir -p staging_dir/host
               rm -rf build_dir/
               mkdir -p build_dir/host
           fi
+          if [[ " kng_re r3g r3p " == *" $TARGET "* ]]; then
+              CACHE_ARCH=mips
+          else
+              CACHE_ARCH=arm
+          fi
+          echo "CACHE_ARCH = $CACHE_ARCH"
+          echo "USE_CACHE=$USE_CACHE" >> $GITHUB_ENV
+          echo "CACHE_VER=$CACHE_VER" >> $GITHUB_ENV
+          echo "CACHE_ARCH=$CACHE_ARCH" >> $GITHUB_ENV
+          echo "status=success" >> $GITHUB_OUTPUT
 
       - name: Restore cache for host tools
         id: tools_cache_restore
         if: github.event.inputs.use_cache == 'true'
         uses: actions/cache/restore@v4
         with:
-          key: host-tools-${{ hashFiles('tools/**') }}
+          key: host-tools-${{ env.CACHE_VER }}-${{ env.CACHE_ARCH }}-${{ hashFiles('tools/**') }}
           path: |
             staging_dir/host
             build_dir/host
@@ -246,7 +266,6 @@ jobs:
           find build_dir/host -name ".prepared*"  -exec touch {} +
           find build_dir/host -name ".configured" -exec touch {} +
           find build_dir/host -name ".built"      -exec touch {} +
-          touch build_dir/stamp
 
       - name: Inspect restored host tools
         if: github.event.inputs.use_cache == 'true'
@@ -302,6 +321,8 @@ jobs:
           echo "====== .config ========="
           cat .config
           echo "========================"
+          cp -f .config logs/config1
+          cp -f .config config1
 
       - name: Monitor memory
         run: |
@@ -330,7 +351,6 @@ jobs:
           find build_dir/host -name ".prepared*"  -exec touch {} +
           find build_dir/host -name ".configured" -exec touch {} +
           find build_dir/host -name ".built"      -exec touch {} +
-          touch build_dir/stamp
 
       - name: Build tools and toolchain
         id: tools
@@ -339,22 +359,12 @@ jobs:
           make toolchain/install -j$(nproc)
           echo "status=success" >> $GITHUB_OUTPUT
 
-      - name: Save cache for host tools (use_cache = true)
+      - name: Save cache for host tools
         id: tools_cache_save
-        if: steps.tools.outputs.status == 'success' && github.event.inputs.use_cache == 'true' && steps.tools_cache_restore.outputs.cache-hit != 'true'
+        if: steps.tools.outputs.status == 'success'
         uses: actions/cache/save@v4
         with:
-          key: ${{ steps.tools_cache_restore.outputs.cache-primary-key }}
-          path: |
-            staging_dir/host
-            build_dir/host
-
-      - name: Save cache for host tools (use_cache = false)
-        id: tools_cache_save_2
-        if: steps.tools.outputs.status == 'success' && github.event.inputs.use_cache != 'true'
-        uses: actions/cache/save@v4
-        with:
-          key: host-tools-${{ hashFiles('tools/**') }}
+          key: host-tools-${{ env.CACHE_VER }}-${{ env.CACHE_ARCH }}-${{ hashFiles('tools/**') }}
           path: |
             staging_dir/host
             build_dir/host
@@ -367,16 +377,31 @@ jobs:
         run: |
           make clean
           ./xmake.sh -I -t $TARGET
+          mkdir -p logs
+          cp -f .config logs/config2
+          [ -f config1 ] && cp -f config1 logs/config1
 
       - name: Kernel compile
         id: kernel
-        if: false # ${{ steps.tools.outputs.status == 'success' && github.event.inputs.fake_build != 'true' }}
+        if: ${{ steps.tools.outputs.status == 'success' && github.event.inputs.fake_build != 'true' }}
         run: |
-          make target/linux/compile -j$(npoc)
-          make target/linux/install -j$(npoc)
-          make target/linux/dtb -j$(npoc)
-          make target/linux/prereq
+          make target/linux/compile -j$(nproc)
           echo "status=success" >> $GITHUB_OUTPUT
+
+      - name: <<< TEST compile >>>
+        if: false # ${{ steps.kernel.outputs.status == 'success' && github.event.inputs.fake_build != 'true' }}
+        run: |
+          make buildinfo
+          echo "====== package/utils/lua/host/compile"
+          make package/utils/lua/host/compile
+          echo "====== package/system/apk/host/compile"
+          make package/system/apk/host/compile 
+          cp -f .config logs/config3
+          echo "====== package/feeds/packages/mdio-netlink"
+          make package/feeds/packages/mdio-netlink/compile V=sc
+          # exit 78
+          # make package/feeds/packages/mdio-netlink/compile V=s --debug=j
+          # make package/feeds/packages/mdio-netlink/compile V=sc
 
       - name: Monitor memory 2
         run: |
@@ -395,15 +420,15 @@ jobs:
           TARGET: ${{ matrix.target }}
         run: |
           echo "Run $(nproc) thread compile"
-          if [ "$FAKE_BUILD" != "true" -a "$TEST_BUILD" = "true" -a "$PACKAGE_DIR" != "" ]; then
+          if [ "$FAKE_BUILD" != "true" -a "$TEST_BUILD" = "true" -a "$G_PKG_DIR" != "" ]; then
               make target/linux/compile -j$(npoc)
-              echo "=============== BUILD PACKAGE: $PACKAGE_DIR ==============="
-              make $PACKAGE_DIR/compile V=sc BUILD_LOG=1
+              echo "=============== BUILD PACKAGE: $G_PKG_DIR ==============="
+              make $G_PKG_DIR/compile V=sc BUILD_LOG=1
               exit 99
           fi
           if [ "$FAKE_BUILD" != "true" ]; then
               if [ "$TEST_BUILD" != "true" ]; then
-                  make -j$(nproc) download world
+                  make -j$(nproc) world
               else
                   make V=sc world
               fi
@@ -491,7 +516,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: logs-${{ matrix.target }}-${{ env.FW_DATE }}
+          name: logs-${{ matrix.target }}-${{ needs.check.outputs.fw_date }}
           path: logs-*.tar.xz
 
   release:
