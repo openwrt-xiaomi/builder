@@ -108,6 +108,7 @@ function build_target {
 		############ change images prefix ############
 		# IMG_PREFIX:=$(VERSION_DIST_SANITIZED)-$(IMG_PREFIX_VERNUM)$(IMG_PREFIX_VERCODE)$(IMG_PREFIX_EXTRA)$(BOARD)$(if $(SUBTARGET),-$(SUBTARGET))
 		sed -i -e 's/^IMG_PREFIX:=.*/IMG_PREFIX:=$(VERSION_DIST_SANITIZED)-$(call sanitize,$(VERSION_NUMBER))-'$CURDATE'/g' $XDIR/include/image.mk
+		echo ">>> image.mk patched !!!"
 	fi
 	if [ 1 = 1 ]; then
 		############ remove "squashfs" suffix ############
@@ -142,10 +143,13 @@ function build_target {
 	PODKOP_SH=$XDIR/package/feeds/_podkop/podkop/files/usr/bin/podkop
 	if [ -f $PODKOP_SH ] && ! grep -q '(which sing-box)' $PODKOP_SH ; then
 		sed -i '/,\\"dns_configured\\":/i [ -z "$(which sing-box)" ] && status="not installed"' $PODKOP_SH
+		echo ">>> podkop patched !!!"
 	fi
 
 	DROPBEAR_DIR=$XDIR/package/network/services/dropbear
+	DROPBEAR_MK=$DROPBEAR_DIR/Makefile
 	TMP_DROPBEAR_DIR=$XDIR/_dropbear2024
+	TMP_DROPBEAR_MK=$TMP_DROPBEAR_DIR/Makefile
 	if [ -f $DROPBEAR_MK ]; then
 		# download dropbear 2024.86 (OpenWrt v24.10)
 		if [ ! -f $TMP_DROPBEAR_DIR/Makefile ]; then
@@ -159,20 +163,22 @@ function build_target {
 			rm -rf $TMP_DROPBEAR_DIR/package
 			rm -rf $TMP_DROPBEAR_DIR/.git
 		fi
-		rm -rf $DROPBEAR_DIR/files
-		rm -rf $DROPBEAR_DIR/patches
 	fi
-	DROPBEAR_MK=$DROPBEAR_DIR/Makefile
-	if [ -f $DROPBEAR_MK ]; then
-		# downgrade dropbear to 2024.86 (OpenWrt v24.10)
-		cp -a $TMP_DROPBEAR_DIR/. $DROPBEAR_DIR/
+	if [ -f $TMP_DROPBEAR_MK ] && ! grep -q 'PKG_RELEASE:=0' $TMP_DROPBEAR_MK ; then
 		# patch: Disable MODERN and enable RSA/DH-SHA1
-		sed -i 's/^PKG_RELEASE:=.*/PKG_RELEASE:=0/g' $DROPBEAR_MK
-		sed -i '/,CONFIG_DROPBEAR_MODERN_ONLY,/d' $DROPBEAR_MK
-		sed -i 's/\tCONFIG_DROPBEAR_MODERN_ONLY/ /g' $DROPBEAR_MK
-		sed -i 's/ CONFIG_DROPBEAR_MODERN_ONLY/ /g' $DROPBEAR_MK
-		sed -i 's/DROPBEAR_DH_GROUP14_SHA1,0/ /g' $DROPBEAR_MK
-		sed -i 's/DROPBEAR_SHA1_HMAC,0/ /g' $DROPBEAR_MK
+		sed -i 's/^PKG_RELEASE:=.*/PKG_RELEASE:=0/g' $TMP_DROPBEAR_MK
+		sed -i '/,CONFIG_DROPBEAR_MODERN_ONLY,/d' $TMP_DROPBEAR_MK
+		sed -i 's/\tCONFIG_DROPBEAR_MODERN_ONLY/ /g' $TMP_DROPBEAR_MK
+		sed -i 's/ CONFIG_DROPBEAR_MODERN_ONLY/ /g' $TMP_DROPBEAR_MK
+		sed -i 's/DROPBEAR_DH_GROUP14_SHA1,0/ /g' $TMP_DROPBEAR_MK
+		sed -i 's/DROPBEAR_SHA1_HMAC,0/ /g' $TMP_DROPBEAR_MK
+		echo ">>> dropbear patched !!! (disable MODERN_ONLY)"
+	fi
+	if [ -f $DROPBEAR_MK ]  && [ -f $TMP_DROPBEAR_MK ] && ! cmp -s $DROPBEAR_MK $TMP_DROPBEAR_MK ; then
+		# downgrade dropbear to 2024.86 (OpenWrt v24.10)
+		rm -rf $DROPBEAR_DIR/*
+		cp -a $TMP_DROPBEAR_DIR/. $DROPBEAR_DIR/
+		echo ">>> dropbear downgraded to 2024.86 !!!"
 	fi
 
 	make defconfig
