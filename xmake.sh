@@ -108,6 +108,7 @@ function build_target {
 		############ change images prefix ############
 		# IMG_PREFIX:=$(VERSION_DIST_SANITIZED)-$(IMG_PREFIX_VERNUM)$(IMG_PREFIX_VERCODE)$(IMG_PREFIX_EXTRA)$(BOARD)$(if $(SUBTARGET),-$(SUBTARGET))
 		sed -i -e 's/^IMG_PREFIX:=.*/IMG_PREFIX:=$(VERSION_DIST_SANITIZED)-$(call sanitize,$(VERSION_NUMBER))-'$CURDATE'/g' $XDIR/include/image.mk
+		echo ">>> image.mk patched !!!"
 	fi
 	if [ 1 = 1 ]; then
 		############ remove "squashfs" suffix ############
@@ -142,16 +143,19 @@ function build_target {
 	PODKOP_SH=$XDIR/package/feeds/_podkop/podkop/files/usr/bin/podkop
 	if [ -f $PODKOP_SH ] && ! grep -q '(which sing-box)' $PODKOP_SH ; then
 		sed -i '/,\\"dns_configured\\":/i [ -z "$(which sing-box)" ] && status="not installed"' $PODKOP_SH
+		echo ">>> podkop patched !!!"
 	fi
 
 	DROPBEAR_MK=$XDIR/package/network/services/dropbear/Makefile
 	if [ -f $DROPBEAR_MK ]; then
+		# patch: Disable MODERN and enable RSA/DH-SHA1
 		sed -i 's/^PKG_RELEASE:=.*/PKG_RELEASE:=0/g' $DROPBEAR_MK
 		sed -i '/,CONFIG_DROPBEAR_MODERN_ONLY,/d' $DROPBEAR_MK
 		sed -i 's/\tCONFIG_DROPBEAR_MODERN_ONLY/ /g' $DROPBEAR_MK
 		sed -i 's/ CONFIG_DROPBEAR_MODERN_ONLY/ /g' $DROPBEAR_MK
 		sed -i 's/DROPBEAR_DH_GROUP14_SHA1,0/ /g' $DROPBEAR_MK
 		sed -i 's/DROPBEAR_SHA1_HMAC,0/ /g' $DROPBEAR_MK
+		echo ">>> dropbear patched !!! (disable MODERN_ONLY)"
 	fi
 
 	make defconfig
