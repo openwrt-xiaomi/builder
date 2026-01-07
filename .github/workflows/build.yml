@@ -4,13 +4,18 @@ on:
   workflow_dispatch:
     inputs:
       use_cache:
-        description: 'Use cache for host tools'
+        description: 'Restore cache for host tools'
         required: true
-        default: 'false'
+        default: 'true'
         type: choice
         options:
         - true
         - false
+      cache_ver:
+        description: 'Use cache version'
+        required: false
+        default: '0'
+        type: string
       test_build:
         description: 'Test build (only spec target) '
         required: true
@@ -48,12 +53,11 @@ env:
   FAKE_BUILD: ${{ github.event.inputs.fake_build == 'true' }}
   TAG_SUFFIX: ${{ github.event.inputs.fake_build == 'true' && '-fake' || github.event.inputs.test_build == 'true' && '-test' || '' }}
   TARGET_NAME: ${{ github.event.inputs.target_name }}
-  PACKAGE_DIR: ${{ github.event.inputs.package_dir }}
+  G_PKG_DIR: ${{ github.event.inputs.package_dir }}
   REPO_URL: https://github.com/openwrt-xiaomi/openwrt
   REPO_LNK: openwrt-xiaomi/openwrt
   REPO_BRANCH: xq-24.10
   TAG_PREFIX: v24-
-  DEPENDENCIES: ${{ github.workspace }}/dependencies-ubuntu.txt
   TZ: UTC
   DEVICE_NAME: unknown
   BUILD_DATE: unknown
@@ -172,7 +176,7 @@ jobs:
           sudo apt-get -qq install  build-essential gawk flex rsync swig unzip zlib1g-dev file wget
           sudo apt-get -qq install  libc6-dev clang bison g++ gcc-multilib g++-multilib
           sudo apt-get -qq install  gettext git libncurses5-dev libssl-dev python3-setuptools
-          sudo apt-get -qq install  libc6-dev pkg-config
+          sudo apt-get -qq install  libc6-dev pkg-config squashfs-tools
           sudo apt-get -qq autoremove --purge
           sudo apt-get -qq clean
           sudo timedatectl set-timezone "$TZ"
@@ -185,7 +189,17 @@ jobs:
           remove-haskell: true
           remove-codeql: true
           remove-docker-images: true
-        
+
+      - name: Set fixed workspace
+        env: 
+          GITHUB_WORKSPACE: ${{ github.workspace }}
+        run: |
+          sudo mkdir -p $GITHUB_WORKSPACE/_temp
+          #sudo chown -R $USER:$USER $GITHUB_WORKSPACE
+          echo "GITHUB_WORKSPACE = $GITHUB_WORKSPACE"
+          echo "GITHUB_WORKSPACE=$GITHUB_WORKSPACE" >> $GITHUB_ENV
+          echo "RUNNER_TEMP=$GITHUB_WORKSPACE/_temp" >> $GITHUB_ENV
+          
       - name: Checkout builder
         uses: actions/checkout@main
 
@@ -203,29 +217,71 @@ jobs:
 
       - name: Update OpenWrt packages
         id: update
-        env: 
-          USE_CACHE: ${{ github.event.inputs.use_cache }}
         run: |
           ./xupdate.sh -f
           mkdir -p logs
           echo "status=success" >> $GITHUB_OUTPUT
-          echo "USE_CACHE=$USE_CACHE" >> $GITHUB_ENV
+          
+      - name: Prepare for cache
+        id: cache_prepare
+        env: 
+          TARGET: ${{ matrix.target }}
+          USE_CACHE: ${{ github.event.inputs.use_cache }}
+          CACHE_VER: ${{ github.event.inputs.cache_ver }}
+        run: |
           if [ "$USE_CACHE" = "true" ]; then
               rm -rf staging_dir/
               mkdir -p staging_dir/host
               rm -rf build_dir/
               mkdir -p build_dir/host
           fi
+          if [[ " kng_re r3g r3p " == *" $TARGET "* ]]; then
+              CACHE_ARCH=mips
+          else
+              CACHE_ARCH=arm
+          fi
+          echo "CACHE_ARCH = $CACHE_ARCH"
+          echo "USE_CACHE=$USE_CACHE" >> $GITHUB_ENV
+          echo "CACHE_VER=$CACHE_VER" >> $GITHUB_ENV
+          echo "CACHE_ARCH=$CACHE_ARCH" >> $GITHUB_ENV
+          echo "status=success" >> $GITHUB_OUTPUT
 
       - name: Restore cache for host tools
         id: tools_cache_restore
         if: github.event.inputs.use_cache == 'true'
         uses: actions/cache/restore@v4
         with:
-          key: host-tools-${{ runner.os }}-${{ hashFiles('tools/**') }}
+          key: host-tools-${{ env.CACHE_VER }}-${{ env.CACHE_ARCH }}-${{ hashFiles('tools/**') }}
           path: |
             staging_dir/host
             build_dir/host
+
+      - name: Fix time stamps into restored dirs
+        if: github.event.inputs.use_cache == 'true' && steps.tools_cache_restore.outputs.cache-hit == 'true'
+        run: |
+          touch staging_dir/host/.prepared
+          touch staging_dir/host/.prereq-build
+          touch staging_dir/host/stamp/.* 2>/dev/null
+          find build_dir/host -name ".prepared*"  -exec touch {} +
+          find build_dir/host -name ".configured" -exec touch {} +
+          find build_dir/host -name ".built"      -exec touch {} +
+
+      - name: Inspect restored host tools
+        if: github.event.inputs.use_cache == 'true'
+        run: |
+          echo "====== openwrt-native.txt ======"
+          cat build_dir/host/pkgconf-*/openwrt-native.txt || true
+          echo "====== staging_dir/host ====="
+          du -sh staging_dir/host || true
+          ls -la staging_dir/host || true
+          echo "====== staging_dir/host/bin ====="
+          du -sh staging_dir/host/bin || true
+          ls -1  staging_dir/host/bin | head -20 || true
+          echo "====== build_dir/host ======="
+          du -sh build_dir/host || true
+          ls -1  build_dir/host | head -20 || true
+          echo "====== path info ========"
+          grep -R "/home/runner" build_dir/host | head
 
       - name: Configure
         id: configure
@@ -264,6 +320,8 @@ jobs:
           echo "====== .config ========="
           cat .config
           echo "========================"
+          cp -f .config logs/config1
+          cp -f .config config1
 
       - name: Monitor memory
         run: |
@@ -283,6 +341,16 @@ jobs:
           make -j$(nproc) download
           echo "status=success" >> $GITHUB_OUTPUT
 
+      - name: Fix time stamps into restored dirs
+        if: github.event.inputs.use_cache == 'true' && steps.tools_cache_restore.outputs.cache-hit == 'true'
+        run: |
+          touch staging_dir/host/.prepared
+          touch staging_dir/host/.prereq-build
+          touch staging_dir/host/stamp/.* 2>/dev/null
+          find build_dir/host -name ".prepared*"  -exec touch {} +
+          find build_dir/host -name ".configured" -exec touch {} +
+          find build_dir/host -name ".built"      -exec touch {} +
+
       - name: Build tools and toolchain
         id: tools
         if: ${{ steps.configure.outputs.status == 'success' && github.event.inputs.fake_build != 'true' }}
@@ -290,31 +358,33 @@ jobs:
           make toolchain/install -j$(nproc)
           echo "status=success" >> $GITHUB_OUTPUT
 
-      - name: Save cache for host tools (use_cache = true)
+      - name: Save cache for host tools
         id: tools_cache_save
-        if: steps.tools.outputs.status == 'success' && github.event.inputs.use_cache == 'true' && steps.tools_cache_restore.outputs.cache-hit != 'true'
+        if: steps.tools.outputs.status == 'success'
         uses: actions/cache/save@v4
         with:
-          key: ${{ steps.tools_cache_restore.outputs.cache-primary-key }}
+          key: host-tools-${{ env.CACHE_VER }}-${{ env.CACHE_ARCH }}-${{ hashFiles('tools/**') }}
           path: |
             staging_dir/host
             build_dir/host
 
-      - name: Save cache for host tools (use_cache = false)
-        id: tools_cache_save_2
-        if: steps.tools.outputs.status == 'success' && github.event.inputs.use_cache != 'true'
-        uses: actions/cache/save@v4
-        with:
-          key: host-tools-${{ runner.os }}-${{ hashFiles('tools/**') }}
-          path: |
-            staging_dir/host
-            build_dir/host
+      - name: Configure 2
+        id: configure2
+        if: steps.tools.outputs.status == 'success'
+        env: 
+          TARGET: ${{ matrix.target }}
+        run: |
+          make clean
+          ./xmake.sh -I -t $TARGET
+          mkdir -p logs
+          cp -f .config logs/config2
+          [ -f config1 ] && cp -f config1 logs/config1
 
-      - name: Kernel compile and install
+      - name: Kernel compile
         id: kernel
         if: ${{ steps.tools.outputs.status == 'success' && github.event.inputs.fake_build != 'true' }}
         run: |
-          make target/linux/install -j$(nproc)
+          make target/linux/compile -j$(nproc)
           echo "status=success" >> $GITHUB_OUTPUT
 
       - name: Monitor memory 2
@@ -329,13 +399,15 @@ jobs:
 
       - name: Build the firmware image
         id: compile
-        if: steps.tools.outputs.status == 'success' && steps.kernel.outputs.status == 'success'
+        if: steps.tools.outputs.status == 'success'
         env: 
           TARGET: ${{ matrix.target }}
         run: |
           echo "Run $(nproc) thread compile"
-          if [ "$FAKE_BUILD" != "true" -a "$TEST_BUILD" = "true" -a "$PACKAGE_DIR" != "" ]; then
-              make $PACKAGE_DIR/compile V=sc BUILD_LOG=1
+          if [ "$FAKE_BUILD" != "true" -a "$TEST_BUILD" = "true" -a "$G_PKG_DIR" != "" ]; then
+              make target/linux/compile -j$(npoc)
+              echo "=============== BUILD PACKAGE: $G_PKG_DIR ==============="
+              make $G_PKG_DIR/compile V=sc BUILD_LOG=1
               exit 99
           fi
           if [ "$FAKE_BUILD" != "true" ]; then
@@ -428,7 +500,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: logs-${{ matrix.target }}-${{ env.FW_DATE }}
+          name: logs-${{ matrix.target }}-${{ needs.check.outputs.fw_date }}
           path: logs-*.tar.xz
 
   release:
@@ -466,7 +538,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ needs.check.outputs.tag }}
         with:
-          prerelease: ${{ env.TEST_BUILD == 'true' || env.FAKE_BUILD == 'true' }}
+          prerelease: true
           tag_name: ${{ needs.check.outputs.tag }}${{ env.TAG_SUFFIX }}
           name: '${{ needs.check.outputs.tag }}'
           body: |
