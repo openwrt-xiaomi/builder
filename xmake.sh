@@ -15,7 +15,6 @@ OPT_FULL_REBUILD=false
 KALLSYMS=false
 TESTING_KERNEL=false
 BUILD_ONLY_INITRAMFS=false
-BUILD_SKIP_INITRAMFS=false
 ONLY_INIT=false
 
 while getopts "j:t:fiskTI" opt; do
@@ -26,7 +25,6 @@ while getopts "j:t:fiskTI" opt; do
 		k) KALLSYMS=true;;
 		T) TESTING_KERNEL=true;;
 		i) BUILD_ONLY_INITRAMFS=true;;
-		s) BUILD_SKIP_INITRAMFS=true;;
 		I) ONLY_INIT=true;;
 	esac
 done
@@ -70,7 +68,7 @@ function build_target {
 	fi
 	inclst=$( get_cfg_inc_lst $CFG )
 	for inc in $inclst; do
-		incfn=$XDIR/$inc
+		incfn=$XDIR/_cfginc/$inc
 		[ ! -f $incfn ] && die "File '$inc' not found!"
 		sed -i "/#include $inc/a <<LF>><<LF>>" $CFG
 		sed -i "s/<<LF>>/\n/g" $CFG
@@ -288,6 +286,9 @@ function build_target {
 		sed -i "s/<<ARCH>>/$TARGET_ARCH_PACKAGES/g" $OPKG_CFEED_FN
 		logmsg "Added support of Fantastic packages [https://fantastic-packages.github.io/packages]"
 	fi
+	if [ $BUILD_ONLY_INITRAMFS = true ]; then
+		rm -f $OPKG_DIR/customfeeds.conf
+	fi
 
 	SYSCTLCONF_FN=$XDIR/files/etc/sysctl.conf
 	if [ -f $SYSCTLCONF_FN ]; then
@@ -317,13 +318,19 @@ function build_config {
 	local cfg=$1
 	local cfg_name=$( basename $cfg )
 	local target_name=${cfg_name%.*}
+	local initramfs=false
 	local board=$( get_cfg_board $cfg )
 	local subtarget=$( get_cfg_subtarget $cfg $board )
 	local device=$( get_cfg_dev_lst $cfg $board $subtarget )
 	local outdir=$XDIR/bin/targets/$board/$subtarget	
-	echo Start build for target $cfg_name "($board-$subtarget-$device)"
-	
-	build_target $cfg_name
+
+	if echo "$cfg" | grep -q '_initramfs/' ; then
+		initramfs=true
+		target_name=${target_name}_initramfs
+	fi
+	echo Start build for target $target_name "($board-$subtarget-$device)"
+
+	build_target $cfg
 	
 	if [ ! -f $outdir/kernel-debug.tar.zst ]; then
 		echo "ERROR: cannot build images for target $target_name"
@@ -338,6 +345,9 @@ function build_config {
 
 if [ "$XTARGET" != "*" ]; then
 	TARGETCFG=$XDIR/$XTARGET
+	if [ $BUILD_ONLY_INITRAMFS = true ]; then
+		TARGETCFG=$XDIR/_initramfs/$XTARGET
+	fi
 	XTARGET_EXT="${XTARGET##*.}"
 	[ $XTARGET_EXT != config ] && TARGETCFG=$TARGETCFG.config
 	[ ! -f $TARGETCFG ] && die "File '"`basename $TARGETCFG`"' not found!"
@@ -349,7 +359,12 @@ if [ "$XTARGET" != "*" ]; then
 fi
 
 XOUT=$XDIR/xout
-CFG_LIST=$( find $XDIR/* -maxdepth 1 -name '[a-z0-9]*.config' )
+
+if [ $BUILD_ONLY_INITRAMFS = true ]; then
+	CFG_LIST=$( find $XDIR/_initramfs/* -maxdepth 1 -name '[a-z0-9]*.config' )
+else
+	CFG_LIST=$( find $XDIR/* -maxdepth 1 -name '[a-z0-9]*.config' )
+fi
 
 rm -rf $XOUT
 
@@ -358,35 +373,16 @@ if [ -z "$CFG_LIST" ]; then
 	exit 1
 fi
 
-INITRAMFS_COUNT=0
+if [ $BUILD_ONLY_INITRAMFS = true ]; then
+	echo "Start make initramfs configs!"
+else
+	echo "Start make non initramfs configs!"
+fi	
+	
+clean_all
+
 for CFG in $CFG_LIST; do
-	if [[ "$CFG" == *"_initramfs"* ]]; then
-		INITRAMFS_COUNT=$(( INITRAMFS_COUNT + 1 ))
-	fi
+   build_config $CFG
 done
 
-if [ $INITRAMFS_COUNT = 0 ] && [ $BUILD_ONLY_INITRAMFS = true ]; then
-	echo "ERROR: Cannot found initramfs configs!"
-	exit 1
-fi
-
-if [ $INITRAMFS_COUNT -gt 0 ] && [ $BUILD_SKIP_INITRAMFS != true ]; then
-	echo "Start make initramfs configs!"
-	clean_all
-	for CFG in $CFG_LIST; do
-	   [[ "$CFG" != *"_initramfs"* ]] && continue  # process only initramfs configs
-	   build_config $CFG
-	done
-fi
-
-if [ $BUILD_ONLY_INITRAMFS != true ]; then
-	echo "Start make non initramfs configs!"
-	clean_all
-	for CFG in $CFG_LIST; do
-		[[ "$CFG" == *"_initramfs"* ]] && continue  # skip initramfs configs
-		build_config $CFG
-	done
-fi
-
 echo "All targets was builded!" 
-
