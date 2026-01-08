@@ -157,8 +157,9 @@ jobs:
           - rt-ax57m
           - rt-ax59u
           - rt-ax89x
-          - tuf_ax4200
-          - tuf_ax6000
+          - tuf-ax4200
+          - tuf-ax4200q
+          - tuf-ax6000
           - zen-bt8
         isTest:
           - ${{ needs.check.outputs.test_build == 'true' }}
