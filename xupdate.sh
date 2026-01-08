@@ -4,8 +4,8 @@ SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 export XDIR=$SCRIPT_DIR
 export XADDONSDIR=$XDIR/package/addons
 FEEDSDIR=$XDIR/package/feeds
-ADDONSCFG=$XDIR/_addons.config
-ADDONSNSS=$XDIR/_addons_nss.config
+ADDONSCFG=$XDIR/_cfginc/_addons.config
+ADDONSNSS=$XDIR/_cfginc/_addons_nss.config
 
 . ./xcommon.sh
 
