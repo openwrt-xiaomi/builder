@@ -119,10 +119,10 @@ function build_target {
 		fi
 	fi	
 	
-	AWG_LUCI_MK=$XDIR/package/feeds/_ruantiblock/luci-app-ruantiblock/Makefile
-	if [ -f $AWG_LUCI_MK ]; then
-		if ! grep "PKG_PROVIDES" $AWG_LUCI_MK >/dev/null ; then
-			sed -i 's/LUCI_PKGARCH:=all/LUCI_PKGARCH:=all\nPKG_PROVIDES:=luci-app-ruantiblock/g' $AWG_LUCI_MK
+	RAB_LUCI_MK=$XDIR/package/feeds/_ruantiblock/luci-app-ruantiblock/Makefile
+	if [ -f $RAB_LUCI_MK ]; then
+		if ! grep "PKG_PROVIDES" $RAB_LUCI_MK >/dev/null ; then
+			sed -i 's/LUCI_PKGARCH:=all/LUCI_PKGARCH:=all\nPKG_PROVIDES:=luci-app-ruantiblock/g' $RAB_LUCI_MK
 		fi
 	fi
 
@@ -133,15 +133,38 @@ function build_target {
 		fi
 	fi
 
-	PODKOP_MK=$XDIR/package/feeds/_podkop/podkop/Makefile
-	if [ -f $PODKOP_MK ]; then
-		sed -i 's/+sing-box / /g' $PODKOP_MK
-		sed -i 's/CONFLICTS:=.*/CONFLICTS:=/g' $PODKOP_MK
-	fi
-	PODKOP_SH=$XDIR/package/feeds/_podkop/podkop/files/usr/bin/podkop
-	if [ -f $PODKOP_SH ] && ! grep -q '(which sing-box)' $PODKOP_SH ; then
-		sed -i '/,\\"dns_configured\\":/i [ -z "$(which sing-box)" ] && status="not installed"' $PODKOP_SH
-		echo ">>> podkop patched !!!"
+	PODKOP_DIR=$XDIR/package/feeds/_podkop
+	if [ -d $PODKOP_DIR ]; then
+		PODKOP_PATCH=
+		PODKOP_MK=$PODKOP_DIR/podkop/Makefile
+		if [ -f $PODKOP_MK ] && grep -q '+sing-box' $PODKOP_MK ; then
+			sed -i 's/+sing-box / /g' $PODKOP_MK
+			sed -i 's/CONFLICTS:=.*/CONFLICTS:=/g' $PODKOP_MK
+			PODKOP_PATCH="$PODKOP_PATCH (del depend sing-box)"
+		fi
+		PODKOP_SH=$PODKOP_DIR/podkop/files/usr/bin/podkop
+		if [ -f $PODKOP_SH ] && ! grep -q '(which sing-box)' $PODKOP_SH ; then
+			sed -i '/,\\"dns_configured\\":/i [ -z "$(which sing-box)" ] && status="not installed"' $PODKOP_SH
+			PODKOP_PATCH="$PODKOP_PATCH (status for sing-box)"
+		fi
+		if [ -f $PODKOP_MK ] && grep -q 'PODKOP_VERSION' $PODKOP_MK ; then
+			PKGVERLIST=$( git ls-remote --tags https://github.com/itdoginfo/podkop.git | awk -F/ '{print $3}' | grep -Ev '^v' | sort -V | tail -n 2 )
+			VER_PREV=$( sed -n '1p' <<< "$PKGVERLIST" )
+			VER_LATEST=$( sed -n '2p' <<< "$PKGVERLIST" )
+			[ -z "$VER_LATEST" ] && { echo "ERROR: cannot detect version of podkop!"; exit 1; }
+			sed -i 's/PKG_VERSION :=.*/PKG_VERSION:='$VER_LATEST'/g' $PODKOP_MK
+			PODKOP_PATCH="$PODKOP_PATCH (set ver $VER_LATEST)"
+		fi
+		PODKOP_MK=$PODKOP_DIR/luci-app-podkop/Makefile
+		if [ -f $PODKOP_MK ] && grep -q 'PODKOP_VERSION' $PODKOP_MK ; then
+			PKGVERLIST=$( git ls-remote --tags https://github.com/itdoginfo/podkop.git | awk -F/ '{print $3}' | grep -Ev '^v' | sort -V | tail -n 2 )
+			VER_PREV=$( sed -n '1p' <<< "$PKGVERLIST" )
+			VER_LATEST=$( sed -n '2p' <<< "$PKGVERLIST" )
+			[ -z "$VER_LATEST" ] && { echo "ERROR: cannot detect version of podkop!"; exit 1; }
+			sed -i 's/PKG_VERSION :=.*/PKG_VERSION:='$VER_LATEST'/g' $PODKOP_MK
+			PODKOP_PATCH="$PODKOP_PATCH (Set Ver $VER_LATEST)"
+		fi
+		[ "$PODKOP_PATCH" != "" ] && echo ">>> podkop patched !!! $PODKOP_PATCH"
 	fi
 
 	DROPBEAR_MK=$XDIR/package/network/services/dropbear/Makefile
@@ -191,7 +214,10 @@ function build_target {
 		echo -e "\nCONFIG_PACKAGE_wpad-openssl=y\n" >> $CFG
 	fi
 
-	#DASHBRDPO=$XDIR/feeds/luci/modules/luci-mod-dashboard/po/ru/dashboard.po
+	DASHBRDPO=$XDIR/feeds/luci/modules/luci-mod-dashboard/po/ru/dashboard.po
+	if [ -f $DASHBRDPO ]; then
+		sed -i 's/msgid "Dashboard"/msgid "__dash_board__"/g' $DASHBRDPO
+	fi
 	DASHBRDPO=$XDIR/package/feeds/luci/luci-mod-dashboard/po/ru/dashboard.po
 	if [ -f $DASHBRDPO ]; then
 		sed -i 's/msgid "Dashboard"/msgid "__dash_board__"/g' $DASHBRDPO
