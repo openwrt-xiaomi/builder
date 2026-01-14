@@ -15,7 +15,6 @@ OPT_FULL_REBUILD=false
 KALLSYMS=false
 TESTING_KERNEL=false
 BUILD_ONLY_INITRAMFS=false
-BUILD_SKIP_INITRAMFS=false
 ONLY_INIT=false
 
 while getopts "j:t:fiskTI" opt; do
@@ -26,7 +25,6 @@ while getopts "j:t:fiskTI" opt; do
 		k) KALLSYMS=true;;
 		T) TESTING_KERNEL=true;;
 		i) BUILD_ONLY_INITRAMFS=true;;
-		s) BUILD_SKIP_INITRAMFS=true;;
 		I) ONLY_INIT=true;;
 	esac
 done
@@ -70,7 +68,7 @@ function build_target {
 	fi
 	inclst=$( get_cfg_inc_lst $CFG )
 	for inc in $inclst; do
-		incfn=$XDIR/$inc
+		incfn=$XDIR/_cfginc/$inc
 		[ ! -f $incfn ] && die "File '$inc' not found!"
 		sed -i "/#include $inc/a <<LF>><<LF>>" $CFG
 		sed -i "s/<<LF>>/\n/g" $CFG
@@ -108,6 +106,7 @@ function build_target {
 		############ change images prefix ############
 		# IMG_PREFIX:=$(VERSION_DIST_SANITIZED)-$(IMG_PREFIX_VERNUM)$(IMG_PREFIX_VERCODE)$(IMG_PREFIX_EXTRA)$(BOARD)$(if $(SUBTARGET),-$(SUBTARGET))
 		sed -i -e 's/^IMG_PREFIX:=.*/IMG_PREFIX:=$(VERSION_DIST_SANITIZED)-$(call sanitize,$(VERSION_NUMBER))-'$CURDATE'/g' $XDIR/include/image.mk
+		echo ">>> image.mk patched !!!"
 	fi
 	if [ 1 = 1 ]; then
 		############ remove "squashfs" suffix ############
@@ -120,10 +119,10 @@ function build_target {
 		fi
 	fi	
 	
-	AWG_LUCI_MK=$XDIR/package/feeds/_ruantiblock/luci-app-ruantiblock/Makefile
-	if [ -f $AWG_LUCI_MK ]; then
-		if ! grep "PKG_PROVIDES" $AWG_LUCI_MK >/dev/null ; then
-			sed -i 's/LUCI_PKGARCH:=all/LUCI_PKGARCH:=all\nPKG_PROVIDES:=luci-app-ruantiblock/g' $AWG_LUCI_MK
+	RAB_LUCI_MK=$XDIR/package/feeds/_ruantiblock/luci-app-ruantiblock/Makefile
+	if [ -f $RAB_LUCI_MK ]; then
+		if ! grep "PKG_PROVIDES" $RAB_LUCI_MK >/dev/null ; then
+			sed -i 's/LUCI_PKGARCH:=all/LUCI_PKGARCH:=all\nPKG_PROVIDES:=luci-app-ruantiblock/g' $RAB_LUCI_MK
 		fi
 	fi
 
@@ -134,24 +133,50 @@ function build_target {
 		fi
 	fi
 
-	PODKOP_MK=$XDIR/package/feeds/_podkop/podkop/Makefile
-	if [ -f $PODKOP_MK ]; then
-		sed -i 's/+sing-box / /g' $PODKOP_MK
-		sed -i 's/CONFLICTS:=.*/CONFLICTS:=/g' $PODKOP_MK
-	fi
-	PODKOP_SH=$XDIR/package/feeds/_podkop/podkop/files/usr/bin/podkop
-	if [ -f $PODKOP_SH ] && ! grep -q '(which sing-box)' $PODKOP_SH ; then
-		sed -i '/,\\"dns_configured\\":/i [ -z "$(which sing-box)" ] && status="not installed"' $PODKOP_SH
+	PODKOP_DIR=$XDIR/package/feeds/_podkop
+	if [ -d $PODKOP_DIR ]; then
+		PODKOP_PATCH=
+		PODKOP_MK=$PODKOP_DIR/podkop/Makefile
+		if [ -f $PODKOP_MK ] && grep -q '+sing-box' $PODKOP_MK ; then
+			sed -i 's/+sing-box / /g' $PODKOP_MK
+			sed -i 's/CONFLICTS:=.*/CONFLICTS:=/g' $PODKOP_MK
+			PODKOP_PATCH="$PODKOP_PATCH (del depend sing-box)"
+		fi
+		PODKOP_SH=$PODKOP_DIR/podkop/files/usr/bin/podkop
+		if [ -f $PODKOP_SH ] && ! grep -q '(which sing-box)' $PODKOP_SH ; then
+			sed -i '/,\\"dns_configured\\":/i [ -z "$(which sing-box)" ] && status="not installed"' $PODKOP_SH
+			PODKOP_PATCH="$PODKOP_PATCH (status for sing-box)"
+		fi
+		if [ -f $PODKOP_MK ] && grep -q 'PODKOP_VERSION' $PODKOP_MK ; then
+			PKGVERLIST=$( git ls-remote --tags https://github.com/itdoginfo/podkop.git | awk -F/ '{print $3}' | grep -Ev '^v' | sort -V | tail -n 2 )
+			VER_PREV=$( sed -n '1p' <<< "$PKGVERLIST" )
+			VER_LATEST=$( sed -n '2p' <<< "$PKGVERLIST" )
+			[ -z "$VER_LATEST" ] && { echo "ERROR: cannot detect version of podkop!"; exit 1; }
+			sed -i 's/PKG_VERSION :=.*/PKG_VERSION:='$VER_LATEST'/g' $PODKOP_MK
+			PODKOP_PATCH="$PODKOP_PATCH (set ver $VER_LATEST)"
+		fi
+		PODKOP_MK=$PODKOP_DIR/luci-app-podkop/Makefile
+		if [ -f $PODKOP_MK ] && grep -q 'PODKOP_VERSION' $PODKOP_MK ; then
+			PKGVERLIST=$( git ls-remote --tags https://github.com/itdoginfo/podkop.git | awk -F/ '{print $3}' | grep -Ev '^v' | sort -V | tail -n 2 )
+			VER_PREV=$( sed -n '1p' <<< "$PKGVERLIST" )
+			VER_LATEST=$( sed -n '2p' <<< "$PKGVERLIST" )
+			[ -z "$VER_LATEST" ] && { echo "ERROR: cannot detect version of podkop!"; exit 1; }
+			sed -i 's/PKG_VERSION :=.*/PKG_VERSION:='$VER_LATEST'/g' $PODKOP_MK
+			PODKOP_PATCH="$PODKOP_PATCH (Set Ver $VER_LATEST)"
+		fi
+		[ "$PODKOP_PATCH" != "" ] && echo ">>> podkop patched !!! $PODKOP_PATCH"
 	fi
 
 	DROPBEAR_MK=$XDIR/package/network/services/dropbear/Makefile
 	if [ -f $DROPBEAR_MK ]; then
+		# patch: Disable MODERN and enable RSA/DH-SHA1
 		sed -i 's/^PKG_RELEASE:=.*/PKG_RELEASE:=0/g' $DROPBEAR_MK
 		sed -i '/,CONFIG_DROPBEAR_MODERN_ONLY,/d' $DROPBEAR_MK
 		sed -i 's/\tCONFIG_DROPBEAR_MODERN_ONLY/ /g' $DROPBEAR_MK
 		sed -i 's/ CONFIG_DROPBEAR_MODERN_ONLY/ /g' $DROPBEAR_MK
 		sed -i 's/DROPBEAR_DH_GROUP14_SHA1,0/ /g' $DROPBEAR_MK
 		sed -i 's/DROPBEAR_SHA1_HMAC,0/ /g' $DROPBEAR_MK
+		echo ">>> dropbear patched !!! (disable MODERN_ONLY)"
 	fi
 
 	make defconfig
@@ -189,7 +214,10 @@ function build_target {
 		echo -e "\nCONFIG_PACKAGE_wpad-openssl=y\n" >> $CFG
 	fi
 
-	#DASHBRDPO=$XDIR/feeds/luci/modules/luci-mod-dashboard/po/ru/dashboard.po
+	DASHBRDPO=$XDIR/feeds/luci/modules/luci-mod-dashboard/po/ru/dashboard.po
+	if [ -f $DASHBRDPO ]; then
+		sed -i 's/msgid "Dashboard"/msgid "__dash_board__"/g' $DASHBRDPO
+	fi
 	DASHBRDPO=$XDIR/package/feeds/luci/luci-mod-dashboard/po/ru/dashboard.po
 	if [ -f $DASHBRDPO ]; then
 		sed -i 's/msgid "Dashboard"/msgid "__dash_board__"/g' $DASHBRDPO
@@ -284,6 +312,9 @@ function build_target {
 		sed -i "s/<<ARCH>>/$TARGET_ARCH_PACKAGES/g" $OPKG_CFEED_FN
 		logmsg "Added support of Fantastic packages [https://fantastic-packages.github.io/packages]"
 	fi
+	if [ $BUILD_ONLY_INITRAMFS = true ]; then
+		rm -f $OPKG_DIR/customfeeds.conf
+	fi
 
 	SYSCTLCONF_FN=$XDIR/files/etc/sysctl.conf
 	if [ -f $SYSCTLCONF_FN ]; then
@@ -313,13 +344,19 @@ function build_config {
 	local cfg=$1
 	local cfg_name=$( basename $cfg )
 	local target_name=${cfg_name%.*}
+	local initramfs=false
 	local board=$( get_cfg_board $cfg )
 	local subtarget=$( get_cfg_subtarget $cfg $board )
 	local device=$( get_cfg_dev_lst $cfg $board $subtarget )
 	local outdir=$XDIR/bin/targets/$board/$subtarget	
-	echo Start build for target $cfg_name "($board-$subtarget-$device)"
-	
-	build_target $cfg_name
+
+	if echo "$cfg" | grep -q '_initramfs/' ; then
+		initramfs=true
+		target_name=${target_name}_initramfs
+	fi
+	echo Start build for target $target_name "($board-$subtarget-$device)"
+
+	build_target $cfg
 	
 	if [ ! -f $outdir/kernel-debug.tar.zst ]; then
 		echo "ERROR: cannot build images for target $target_name"
@@ -334,6 +371,9 @@ function build_config {
 
 if [ "$XTARGET" != "*" ]; then
 	TARGETCFG=$XDIR/$XTARGET
+	if [ $BUILD_ONLY_INITRAMFS = true ]; then
+		TARGETCFG=$XDIR/_initramfs/$XTARGET
+	fi
 	XTARGET_EXT="${XTARGET##*.}"
 	[ $XTARGET_EXT != config ] && TARGETCFG=$TARGETCFG.config
 	[ ! -f $TARGETCFG ] && die "File '"`basename $TARGETCFG`"' not found!"
@@ -345,7 +385,12 @@ if [ "$XTARGET" != "*" ]; then
 fi
 
 XOUT=$XDIR/xout
-CFG_LIST=$( find $XDIR/* -maxdepth 1 -name '[a-z0-9]*.config' )
+
+if [ $BUILD_ONLY_INITRAMFS = true ]; then
+	CFG_LIST=$( find $XDIR/_initramfs/* -maxdepth 1 -name '[a-z0-9]*.config' )
+else
+	CFG_LIST=$( find $XDIR/* -maxdepth 1 -name '[a-z0-9]*.config' )
+fi
 
 rm -rf $XOUT
 
@@ -354,35 +399,16 @@ if [ -z "$CFG_LIST" ]; then
 	exit 1
 fi
 
-INITRAMFS_COUNT=0
+if [ $BUILD_ONLY_INITRAMFS = true ]; then
+	echo "Start make initramfs configs!"
+else
+	echo "Start make non initramfs configs!"
+fi	
+	
+clean_all
+
 for CFG in $CFG_LIST; do
-	if [[ "$CFG" == *"_initramfs"* ]]; then
-		INITRAMFS_COUNT=$(( INITRAMFS_COUNT + 1 ))
-	fi
+   build_config $CFG
 done
 
-if [ $INITRAMFS_COUNT = 0 ] && [ $BUILD_ONLY_INITRAMFS = true ]; then
-	echo "ERROR: Cannot found initramfs configs!"
-	exit 1
-fi
-
-if [ $INITRAMFS_COUNT -gt 0 ] && [ $BUILD_SKIP_INITRAMFS != true ]; then
-	echo "Start make initramfs configs!"
-	clean_all
-	for CFG in $CFG_LIST; do
-	   [[ "$CFG" != *"_initramfs"* ]] && continue  # process only initramfs configs
-	   build_config $CFG
-	done
-fi
-
-if [ $BUILD_ONLY_INITRAMFS != true ]; then
-	echo "Start make non initramfs configs!"
-	clean_all
-	for CFG in $CFG_LIST; do
-		[[ "$CFG" == *"_initramfs"* ]] && continue  # skip initramfs configs
-		build_config $CFG
-	done
-fi
-
 echo "All targets was builded!" 
-

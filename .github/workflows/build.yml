@@ -3,6 +3,37 @@ name: build
 on:
   workflow_dispatch:
     inputs:
+      use_cache:
+        description: 'Restore cache for host tools'
+        required: true
+        default: 'true'
+        type: choice
+        options:
+        - true
+        - false
+      cache_ver:
+        description: 'Use cache version'
+        required: false
+        default: '0'
+        type: string
+      test_build:
+        description: 'Test build (only spec target) '
+        required: true
+        default: 'false'
+        type: choice
+        options:
+        - true
+        - false
+      target_name:
+        description: 'Target Name for test build'
+        required: false
+        default: 'r3d'
+        type: string
+      package_dir:
+        description: 'Package Dir for test build'
+        required: false
+        default: ''
+        type: string
       fake_build:
         description: 'Fake build'
         required: true
@@ -18,13 +49,15 @@ on:
         type: string
 
 env:
-  FAKE_BUILD: ${{ github.event.inputs.fake_build }}
+  TEST_BUILD: ${{ github.event.inputs.test_build == 'true' }}
+  FAKE_BUILD: ${{ github.event.inputs.fake_build == 'true' }}
+  TAG_SUFFIX: ${{ github.event.inputs.fake_build == 'true' && '-fake' || github.event.inputs.test_build == 'true' && '-test' || '' }}
+  TARGET_NAME: ${{ github.event.inputs.target_name }}
+  G_PKG_DIR: ${{ github.event.inputs.package_dir }}
   REPO_URL: https://github.com/openwrt-xiaomi/openwrt
   REPO_LNK: openwrt-xiaomi/openwrt
   REPO_BRANCH: xq-24.10
   TAG_PREFIX: v24-
-  BUILD_ROOT: ${{ github.workspace }}/openwrt
-  DEPENDENCIES: ${{ github.workspace }}/dependencies-ubuntu.txt
   TZ: UTC
   DEVICE_NAME: unknown
   BUILD_DATE: unknown
@@ -45,6 +78,9 @@ jobs:
       fw_date: ${{ steps.gh.outputs.fw_date }}
       fw_ver: ${{ steps.gh.outputs.fw_ver }}
       is_active: ${{ steps.activity.outputs.is_active }}
+      test_build: ${{ env.TEST_BUILD }}
+      target_name: ${{ env.TARGET_NAME }}
+      fake_build: ${{ env.FAKE_BUILD }}
     steps:
       - name: Get repo data via GH API
         id: gh
@@ -122,9 +158,16 @@ jobs:
           - rt-ax57m
           - rt-ax59u
           - rt-ax89x
-          - tuf_ax4200
-          - tuf_ax6000
+          - tuf-ax4200
+          - tuf-ax4200q
+          - tuf-ax6000
           - zen-bt8
+        isTest:
+          - ${{ needs.check.outputs.test_build == 'true' }}
+        exclude:
+          - { isTest: true }
+        include:
+          - target: ${{ github.event.inputs.target_name }}
     steps:
       - name: Initialization environment
         env:
@@ -132,7 +175,10 @@ jobs:
         run: |
           sudo apt-get -qq update
           #sudo apt-get -qq update && sudo apt-get -qq upgrade
-          sudo apt-get -qq install $(cat $DEPENDENCIES)
+          sudo apt-get -qq install  build-essential gawk flex rsync swig unzip zlib1g-dev file wget
+          sudo apt-get -qq install  libc6-dev clang bison g++ gcc-multilib g++-multilib
+          sudo apt-get -qq install  gettext git libncurses5-dev libssl-dev python3-setuptools
+          sudo apt-get -qq install  libc6-dev pkg-config squashfs-tools
           sudo apt-get -qq autoremove --purge
           sudo apt-get -qq clean
           sudo timedatectl set-timezone "$TZ"
@@ -145,40 +191,107 @@ jobs:
           remove-haskell: true
           remove-codeql: true
           remove-docker-images: true
-        
+
+      - name: Set fixed workspace
+        env: 
+          GITHUB_WORKSPACE: ${{ github.workspace }}
+        run: |
+          sudo mkdir -p $GITHUB_WORKSPACE/_temp
+          #sudo chown -R $USER:$USER $GITHUB_WORKSPACE
+          echo "GITHUB_WORKSPACE = $GITHUB_WORKSPACE"
+          echo "GITHUB_WORKSPACE=$GITHUB_WORKSPACE" >> $GITHUB_ENV
+          echo "RUNNER_TEMP=$GITHUB_WORKSPACE/_temp" >> $GITHUB_ENV
+          
       - name: Checkout builder
         uses: actions/checkout@main
 
       - name: Download OpenWrt sources
-        run: git clone --branch $REPO_BRANCH $REPO_URL.git $BUILD_ROOT
+        run: |
+          git clone --branch $REPO_BRANCH $REPO_URL.git openwrt
+          rm -rf .git
+          rsync -a openwrt/ ./
+          rm -rf openwrt  
 
       - name: Init builder
-        env:
-          BLDROOT: ${{ github.workspace }}
-        shell: bash        
         run: |
-          rsync -avq --exclude=".*" --exclude="$(basename $BUILD_ROOT)" $BLDROOT/ $BUILD_ROOT/
-          cd $BUILD_ROOT
           chmod +x *.sh
           wget https://github.com/fantastic-packages/packages/raw/refs/heads/24.10/keys/usign/53FF2B6672243D28.pub
 
       - name: Update OpenWrt packages
         id: update
         run: |
-          cd $BUILD_ROOT && ./xupdate.sh -f
+          ./xupdate.sh -f
+          mkdir -p logs
+          echo "status=success" >> $GITHUB_OUTPUT
+          
+      - name: Prepare for cache
+        id: cache_prepare
+        env: 
+          TARGET: ${{ matrix.target }}
+          USE_CACHE: ${{ github.event.inputs.use_cache }}
+          CACHE_VER: ${{ github.event.inputs.cache_ver }}
+        run: |
+          if [ "$USE_CACHE" = "true" ]; then
+              rm -rf staging_dir/
+              mkdir -p staging_dir/host
+              rm -rf build_dir/
+              mkdir -p build_dir/host
+          fi
+          if [[ " kng_re r3g r3p " == *" $TARGET "* ]]; then
+              CACHE_ARCH=mips
+          else
+              CACHE_ARCH=arm
+          fi
+          echo "CACHE_ARCH = $CACHE_ARCH"
+          echo "USE_CACHE=$USE_CACHE" >> $GITHUB_ENV
+          echo "CACHE_VER=$CACHE_VER" >> $GITHUB_ENV
+          echo "CACHE_ARCH=$CACHE_ARCH" >> $GITHUB_ENV
           echo "status=success" >> $GITHUB_OUTPUT
 
-      - name: Build the firmware image
-        id: compile
+      - name: Restore cache for host tools
+        id: tools_cache_restore
+        if: github.event.inputs.use_cache == 'true'
+        uses: actions/cache/restore@v4
+        with:
+          key: host-tools-${{ env.CACHE_VER }}-${{ env.CACHE_ARCH }}-${{ hashFiles('tools/**') }}
+          path: |
+            staging_dir/host
+            build_dir/host
+
+      - name: Fix time stamps into restored dirs
+        if: github.event.inputs.use_cache == 'true' && steps.tools_cache_restore.outputs.cache-hit == 'true'
+        run: |
+          touch staging_dir/host/.prepared
+          touch staging_dir/host/.prereq-build
+          touch staging_dir/host/stamp/.* 2>/dev/null
+          find build_dir/host -name ".prepared*"  -exec touch {} +
+          find build_dir/host -name ".configured" -exec touch {} +
+          find build_dir/host -name ".built"      -exec touch {} +
+
+      - name: Inspect restored host tools
+        if: github.event.inputs.use_cache == 'true'
+        run: |
+          echo "====== openwrt-native.txt ======"
+          cat build_dir/host/pkgconf-*/openwrt-native.txt || true
+          echo "====== staging_dir/host ====="
+          du -sh staging_dir/host || true
+          ls -la staging_dir/host || true
+          echo "====== staging_dir/host/bin ====="
+          du -sh staging_dir/host/bin || true
+          ls -1  staging_dir/host/bin | head -20 || true
+          echo "====== build_dir/host ======="
+          du -sh build_dir/host || true
+          ls -1  build_dir/host | head -20 || true
+          echo "====== path info ========"
+          grep -R "/home/runner" build_dir/host | head
+
+      - name: Configure
+        id: configure
         if: steps.update.outputs.status == 'success'
         env: 
           TARGET: ${{ matrix.target }}
           FW_VER: ${{ needs.check.outputs.fw_ver }}
         run: |
-          cd $BUILD_ROOT
-          MAKE_JOBS=$(($(nproc)+1))
-          echo "$MAKE_JOBS thread compile"
-          # init build config
           ./xmake.sh -I -t $TARGET
           G_DEVICE_NAME=$( grep -so '^CONFIG_TARGET.*DEVICE.*=y' .config | sed -r 's/.*DEVICE_(.*)=y/\1/' )
           [ -z "$G_DEVICE_NAME" ] && exit 31
@@ -186,6 +299,8 @@ jobs:
           [ -z "$G_BOARD_NAME" ] && exit 32
           G_SUBTARGET_NAME=$( grep -so '^CONFIG_TARGET_SUBTARGET=.*' .config | cut -d'"' -f2 )
           [ -z "$G_SUBTARGET_NAME" ] && exit 33
+          G_TARGET_ARCH=$( grep -so '^CONFIG_TARGET_ARCH_PACKAGES=.*' .config | cut -d'"' -f2 )
+          echo "G_TARGET_ARCH = $G_TARGET_ARCH"
           VERMAGIC_LIST="vermagic-$G_BOARD_NAME-$G_SUBTARGET_NAME-*.list"
           if [ $(find . -maxdepth 1 -name "$VERMAGIC_LIST" | wc -l) = "0" ]; then
               ./vermagic_update.sh $G_BOARD_NAME $G_SUBTARGET_NAME
@@ -193,17 +308,124 @@ jobs:
           if [ $(find . -maxdepth 1 -name "$VERMAGIC_LIST" | wc -l) = "0" ]; then
               exit 41
           fi
-          # run build
-          [ "$FAKE_BUILD" != "true" ] && make -j $MAKE_JOBS download world
-          # process results
           FILE_DATE=$(date --utc +'%y%m%d')
-          OUT_DIR=$BUILD_ROOT/bin/targets/$G_BOARD_NAME/$G_SUBTARGET_NAME
+          echo "status=success" >> $GITHUB_OUTPUT
+          echo "FW_VER=$FW_VER" >> $GITHUB_ENV
+          echo "G_DEVICE_NAME=$G_DEVICE_NAME" >> $GITHUB_ENV
+          echo "G_BOARD_NAME=$G_BOARD_NAME" >> $GITHUB_ENV
+          echo "G_SUBTARGET_NAME=$G_SUBTARGET_NAME" >> $GITHUB_ENV
+          echo "G_TARGET_ARCH=$G_TARGET_ARCH" >> $GITHUB_ENV
+          echo "FILE_DATE=$FILE_DATE" >> $GITHUB_ENV
+
+      - name: Dump .config file
+        run: |
+          echo "====== .config ========="
+          cat .config
+          echo "========================"
+          cp -f .config logs/config1
+          cp -f .config config1
+
+      - name: Monitor memory
+        run: |
+          echo "CPU cores = $(nproc)"
+          echo "Memory and swap:"
+          sudo free -h
+          echo
+          sudo swapon --show
+          echo
+          echo "Available storage:"
+          sudo df -h
+
+      - name: Download sources (dl)
+        id: download
+        if: ${{ steps.configure.outputs.status == 'success' && github.event.inputs.fake_build != 'true' }}
+        run: |
+          make -j$(nproc) download
+          echo "status=success" >> $GITHUB_OUTPUT
+
+      - name: Fix time stamps into restored dirs
+        if: github.event.inputs.use_cache == 'true' && steps.tools_cache_restore.outputs.cache-hit == 'true'
+        run: |
+          touch staging_dir/host/.prepared
+          touch staging_dir/host/.prereq-build
+          touch staging_dir/host/stamp/.* 2>/dev/null
+          find build_dir/host -name ".prepared*"  -exec touch {} +
+          find build_dir/host -name ".configured" -exec touch {} +
+          find build_dir/host -name ".built"      -exec touch {} +
+
+      - name: Build tools and toolchain
+        id: tools
+        if: ${{ steps.configure.outputs.status == 'success' && github.event.inputs.fake_build != 'true' }}
+        run: |
+          make toolchain/install -j$(nproc)
+          echo "status=success" >> $GITHUB_OUTPUT
+
+      - name: Save cache for host tools
+        id: tools_cache_save
+        if: steps.tools.outputs.status == 'success'
+        uses: actions/cache/save@v4
+        with:
+          key: host-tools-${{ env.CACHE_VER }}-${{ env.CACHE_ARCH }}-${{ hashFiles('tools/**') }}
+          path: |
+            staging_dir/host
+            build_dir/host
+
+      - name: Configure 2
+        id: configure2
+        if: steps.tools.outputs.status == 'success'
+        env: 
+          TARGET: ${{ matrix.target }}
+        run: |
+          make clean
+          ./xmake.sh -I -t $TARGET
+          mkdir -p logs
+          cp -f .config logs/config2
+          [ -f config1 ] && cp -f config1 logs/config1
+
+      - name: Kernel compile
+        id: kernel
+        if: ${{ steps.tools.outputs.status == 'success' && github.event.inputs.fake_build != 'true' }}
+        run: |
+          make target/linux/compile -j$(nproc)
+          echo "status=success" >> $GITHUB_OUTPUT
+
+      - name: Monitor memory 2
+        run: |
+          echo "Memory and swap:"
+          sudo free -h
+          echo
+          sudo swapon --show
+          echo
+          echo "Available storage:"
+          sudo df -h
+
+      - name: Build the firmware image
+        id: compile
+        if: steps.tools.outputs.status == 'success'
+        env: 
+          TARGET: ${{ matrix.target }}
+        run: |
+          echo "Run $(nproc) thread compile"
+          if [ "$FAKE_BUILD" != "true" -a "$TEST_BUILD" = "true" -a "$G_PKG_DIR" != "" ]; then
+              make target/linux/compile -j$(npoc)
+              echo "=============== BUILD PACKAGE: $G_PKG_DIR ==============="
+              make $G_PKG_DIR/compile V=sc BUILD_LOG=1
+              exit 99
+          fi
+          if [ "$FAKE_BUILD" != "true" ]; then
+              if [ "$TEST_BUILD" != "true" ]; then
+                  make -j$(nproc) world
+              else
+                  make V=sc world
+              fi
+          fi
+          # process results
+          OUT_DIR=bin/targets/$G_BOARD_NAME/$G_SUBTARGET_NAME
           if [ "$FAKE_BUILD" = "true" ]; then
               mkdir -p logs
               mkdir -p $OUT_DIR
               echo "$G_BOARD_NAME $G_SUBTARGET_NAME $G_DEVICE_NAME" > "$OUT_DIR/$G_DEVICE_NAME.txt"
               touch "$OUT_DIR/kernel-debug.tar.zst"
-              ls -la
               BLD_VER=$FW_VER
           else
               BLD_VER=$( cat $OUT_DIR/profiles.json | grep -so '"version_number":"[^"]*' | grep -so '[^"]*$' )
@@ -214,24 +436,40 @@ jobs:
               exit 100
           fi
           echo "status=success" >> $GITHUB_OUTPUT
-          echo "DEVICE_NAME=$G_DEVICE_NAME" >> $GITHUB_ENV
-          echo "BOARD_NAME=$G_BOARD_NAME" >> $GITHUB_ENV
-          echo "SUBTARGET_NAME=$G_SUBTARGET_NAME" >> $GITHUB_ENV
+          echo "FW_BUILD_OK=1" >> $GITHUB_ENV
           echo "BLD_VER=$BLD_VER" >> $GITHUB_ENV
           echo "OUT_DIR=$OUT_DIR" >> $GITHUB_ENV
-          echo "FILE_DATE=$FILE_DATE" >> $GITHUB_ENV
+
+      - name: Mark firmware build failed
+        if: false # steps.compile.outcome == 'failure'
+        run: |
+          echo "Firmware build failed, continuing pipeline"
+          echo "FW_BUILD_OK=0" >> $GITHUB_ENV
+          OUT_DIR=_bin_fake
+          mkdir -p $OUT_DIR
+          echo "$G_BOARD_NAME $G_SUBTARGET_NAME $G_DEVICE_NAME" > "$OUT_DIR/$G_DEVICE_NAME.txt"
+          touch "$OUT_DIR/kernel-debug.tar.zst"
+          echo "BUILD FAILED" > $OUT_DIR/FAILED.txt
+          echo "BLD_VER=$FW_VER" >> $GITHUB_ENV
+          echo "OUT_DIR=$OUT_DIR" >> $GITHUB_ENV
 
       - name: Check space usage
         run: df -hT
 
+      - name: Check OOM error
+        if: failure()
+        run: |
+          dmesg | grep -i -E 'oom|killed process' || true
+          echo "================== Memory ================="
+          free -h
+    
       - name: Compress build logs
         if: always()
         env:
           TARGET: ${{ matrix.target }}
           FW_DATE: ${{ needs.check.outputs.fw_date }}
-          LOGS_DIR: ${{ env.BUILD_ROOT }}/logs
         run: |
-          tar -cJvf logs-$TARGET-$FW_DATE.tar.xz $LOGS_DIR
+          tar -cJvf logs-$TARGET-$FW_DATE.tar.xz logs
 
       - name: Cleanup OUT directory 
         if: steps.compile.outputs.status == 'success'
@@ -256,7 +494,7 @@ jobs:
         uses: actions/upload-artifact@main
         if: steps.compile.outputs.status == 'success'
         with:
-          name: openwrt-${{ env.BLD_VER }}-${{ needs.check.outputs.build_date }}-${{ env.DEVICE_NAME }}
+          name: openwrt-${{ env.BLD_VER }}-${{ needs.check.outputs.build_date }}-${{ env.G_DEVICE_NAME }}
           path: ${{ env.OUT_DIR }}
           if-no-files-found: error
 
@@ -264,7 +502,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: logs-${{ matrix.target }}-${{ env.FW_DATE }}
+          name: logs-${{ matrix.target }}-${{ needs.check.outputs.fw_date }}
           path: logs-*.tar.xz
 
   release:
@@ -280,6 +518,16 @@ jobs:
         with:
           pattern: openwrt-*
 
+      - name: Check for failed builds
+        run: |
+          echo "Checking for FAILED.txt in openwrt-* directories..."
+          FAILED_DIRS=$( find . -maxdepth 1 -type d -name 'openwrt-*' -exec test -f '{}/FAILED.txt' \; -print )
+          if [ -n "$FAILED_DIRS" ]; then
+            echo "❌ Build failures detected in:"
+            exit 201
+          fi
+          echo "✅ No FAILED.txt found, proceeding to release"
+    
       - name: Put images into zip
         run: |
           mkdir -p public
@@ -292,8 +540,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ needs.check.outputs.tag }}
         with:
-          prerelease: false
-          tag_name: ${{ needs.check.outputs.tag }}
+          prerelease: true
+          tag_name: ${{ needs.check.outputs.tag }}${{ env.TAG_SUFFIX }}
           name: '${{ needs.check.outputs.tag }}'
           body: |
             OpenWrt ${{ needs.check.outputs.fw_ver }} [${{ needs.check.outputs.fw_date }}]
