@@ -629,10 +629,9 @@ jobs:
           echo "REL_DESC=$DESC" >> $GITHUB_ENV
 
       - name: Upload assets
-        uses: andelf/nightly-release@main
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: softprops/action-gh-release@v2
         with:
+          draft: ${{ env.TEST_BUILD == 'true' || github.event.inputs.fake_build  == 'true' }}
           prerelease: true
           tag_name: ${{ env.REL_TAG }}${{ env.TAG_SUFFIX }}
           name: '${{ env.REL_NAME }}'
