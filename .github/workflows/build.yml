@@ -42,6 +42,14 @@ on:
         options:
         - true
         - false
+      trx_build:
+        description: 'TRX images build'
+        required: true
+        default: 'false'
+        type: choice
+        options:
+        - true
+        - false
       suffix:
         description: 'TAG suffix'
         required: false
@@ -50,7 +58,6 @@ on:
 
 env:
   TEST_BUILD: ${{ github.event.inputs.test_build == 'true' }}
-  FAKE_BUILD: ${{ github.event.inputs.fake_build == 'true' }}
   TAG_SUFFIX: ${{ github.event.inputs.fake_build == 'true' && '-fake' || github.event.inputs.test_build == 'true' && '-test' || '' }}
   TARGET_NAME: ${{ github.event.inputs.target_name }}
   G_PKG_DIR: ${{ github.event.inputs.package_dir }}
@@ -204,6 +211,31 @@ jobs:
       - name: Checkout builder
         uses: actions/checkout@main
 
+      - name: Prepare env params
+        env:
+          INP_FAKE_BUILD: ${{ github.event.inputs.fake_build == 'true' }}
+          INP_TRX_BUILD: ${{ github.event.inputs.trx_build == 'true' }}
+          TARGET: ${{ matrix.target }}
+        run: |
+          FAKE_BUILD=$INP_FAKE_BUILD
+          TRX_BUILD=false
+          if [ "$INP_TRX_BUILD" = true ]; then
+              CFG="./_initramfs/$TARGET.config"
+              if [ -f "$CFG" ]; then
+                  TRX_BUILD=true
+                  echo "Start TRX build for $CFG"
+                  echo "OPT_INITRAMFS=-i" >> $GITHUB_ENV
+              else
+                  FAKE_BUILD=true
+                  echo "Start FAKE build for $TARGET"
+                  echo "SKIP_ME=true" >> $GITHUB_ENV
+              fi
+          fi
+          echo "FAKE_BUILD = $FAKE_BUILD"
+          echo "TRX_BUILD  = $TRX_BUILD"
+          echo "FAKE_BUILD=$FAKE_BUILD" >> $GITHUB_ENV
+          echo "TRX_BUILD=$TRX_BUILD" >> $GITHUB_ENV
+
       - name: Download OpenWrt sources
         run: |
           git clone --branch $REPO_BRANCH $REPO_URL.git openwrt
@@ -291,7 +323,7 @@ jobs:
           TARGET: ${{ matrix.target }}
           FW_VER: ${{ needs.check.outputs.fw_ver }}
         run: |
-          ./xmake.sh -I -t $TARGET
+          ./xmake.sh $OPT_INITRAMFS -I -t $TARGET
           G_DEVICE_NAME=$( grep -so '^CONFIG_TARGET.*DEVICE.*=y' .config | sed -r 's/.*DEVICE_(.*)=y/\1/' )
           [ -z "$G_DEVICE_NAME" ] && exit 31
           G_BOARD_NAME=$( grep -so '^CONFIG_TARGET_BOARD=.*' .config | cut -d'"' -f2 )
@@ -337,7 +369,7 @@ jobs:
 
       - name: Download sources (dl)
         id: download
-        if: ${{ steps.configure.outputs.status == 'success' && github.event.inputs.fake_build != 'true' }}
+        if: ${{ steps.configure.outputs.status == 'success' && env.FAKE_BUILD != 'true' }}
         run: |
           make -j$(nproc) download
           echo "status=success" >> $GITHUB_OUTPUT
@@ -354,7 +386,7 @@ jobs:
 
       - name: Build tools and toolchain
         id: tools
-        if: ${{ steps.configure.outputs.status == 'success' && github.event.inputs.fake_build != 'true' }}
+        if: ${{ steps.configure.outputs.status == 'success' && env.FAKE_BUILD != 'true' }}
         run: |
           make toolchain/install -j$(nproc)
           echo "status=success" >> $GITHUB_OUTPUT
@@ -376,14 +408,14 @@ jobs:
           TARGET: ${{ matrix.target }}
         run: |
           make clean
-          ./xmake.sh -I -t $TARGET
+          ./xmake.sh $OPT_INITRAMFS -I -t $TARGET
           mkdir -p logs
           cp -f .config logs/config2
           [ -f config1 ] && cp -f config1 logs/config1
 
       - name: Kernel compile
         id: kernel
-        if: ${{ steps.tools.outputs.status == 'success' && github.event.inputs.fake_build != 'true' }}
+        if: ${{ steps.tools.outputs.status == 'success' && env.FAKE_BUILD != 'true' }}
         run: |
           make target/linux/compile -j$(nproc)
           echo "status=success" >> $GITHUB_OUTPUT
@@ -418,21 +450,49 @@ jobs:
                   make V=sc world
               fi
           fi
-          # process results
-          OUT_DIR=bin/targets/$G_BOARD_NAME/$G_SUBTARGET_NAME
-          if [ "$FAKE_BUILD" = "true" ]; then
+          echo "status=success" >> $GITHUB_OUTPUT
+          
+      - name: Process out results
+        id: install
+        if: steps.compile.outputs.status == 'success' || env.FAKE_BUILD == 'true'
+        env: 
+          TARGET: ${{ matrix.target }}
+          OUT_DIR: ./bin/targets/${{ env.G_BOARD_NAME }}/${{ env.G_SUBTARGET_NAME }}
+        run: |
+          if [ "$FAKE_BUILD" = true ]; then
               mkdir -p logs
-              mkdir -p $OUT_DIR
-              echo "$G_BOARD_NAME $G_SUBTARGET_NAME $G_DEVICE_NAME" > "$OUT_DIR/$G_DEVICE_NAME.txt"
-              touch "$OUT_DIR/kernel-debug.tar.zst"
+              mkdir -p "$OUT_DIR"
+              cd "$OUT_DIR"
+              echo "$G_BOARD_NAME $G_SUBTARGET_NAME $G_DEVICE_NAME" > "$G_DEVICE_NAME.txt"
+              touch FAKE_BUILD.bin
+              touch kernel-debug.tar.zst
               BLD_VER=$FW_VER
           else
-              BLD_VER=$( cat $OUT_DIR/profiles.json | grep -so '"version_number":"[^"]*' | grep -so '[^"]*$' )
+              if [ ! -d "$OUT_DIR" ]; then
+                  echo "OUT_DIR not found!"
+                  exit 99
+              fi
+              cd "$OUT_DIR"
+              BLD_VER=$( cat profiles.json | grep -so '"version_number":"[^"]*' | grep -so '[^"]*$' )
+          fi
+          if [ "$SKIP_ME" = true ]; then
+              touch FLAG-SKIP_ME
+          fi
+          if [ "$TRX_BUILD" = true ]; then
+              touch FLAG-TRX_BUILD
           fi
           echo "Firmware $BLD_VER [$FILE_DATE] builded!"
-          if [ ! -f $OUT_DIR/kernel-debug.tar.zst ]; then
+          if [ ! -f kernel-debug.tar.zst ]; then
               echo "File kernel-debug.tar.zst not found!"
               exit 100
+          fi
+          if [ "$TRX_BUILD" = true ]; then
+              find . -maxdepth 1 -type f ! -name '*-initramfs*' ! -name 'FLAG-*' -delete
+              VER_MAJOR=$( echo "$BLD_VER" | cut -d. -f1 )
+              STD_IMG_DIR="openwrt-initramfs-bin-for-luci"
+              mkdir $STD_IMG_DIR
+              find . -maxdepth 1 -type f -name '*-initramfs*.bin' -exec mv -f {} $STD_IMG_DIR/openwrt-${VER_MAJOR}_${TARGET}_initramfs.bin \;
+              find . -maxdepth 1 -type f -name '*-initramfs*.trx' -exec mv -f {} openwrt-${VER_MAJOR}_${TARGET}_initramfs.trx \;
           fi
           echo "status=success" >> $GITHUB_OUTPUT
           echo "FW_BUILD_OK=1" >> $GITHUB_ENV
@@ -440,7 +500,7 @@ jobs:
           echo "OUT_DIR=$OUT_DIR" >> $GITHUB_ENV
 
       - name: Mark firmware build failed
-        if: false # steps.compile.outcome == 'failure'
+        if: false # steps.install.outcome == 'failure' || steps.compile.outcome == 'failure'
         run: |
           echo "Firmware build failed, continuing pipeline"
           echo "FW_BUILD_OK=0" >> $GITHUB_ENV
@@ -471,7 +531,7 @@ jobs:
           tar -cJvf logs-$TARGET-$FW_DATE.tar.xz logs
 
       - name: Cleanup OUT directory 
-        if: steps.compile.outputs.status == 'success'
+        if: steps.install.outputs.status == 'success'
         env:
           OUT_DIR: ${{ env.OUT_DIR }}
         run: |
@@ -491,7 +551,7 @@ jobs:
 
       - name: Upload OUT directory
         uses: actions/upload-artifact@main
-        if: steps.compile.outputs.status == 'success'
+        if: steps.install.outputs.status == 'success'
         with:
           name: openwrt-${{ env.BLD_VER }}-${{ needs.check.outputs.build_date }}-${{ env.G_DEVICE_NAME }}
           path: ${{ env.OUT_DIR }}
@@ -530,19 +590,53 @@ jobs:
       - name: Put images into zip
         run: |
           mkdir -p public
-          find . -mindepth 1 -type d -name 'openwrt-*' -exec sh -c 'zip -0 ./public/$(basename {}).zip -j {} {}/*' \;
+          for DIR in openwrt-*; do
+              [ -d "$DIR" ] || continue
+              if [ -f "$DIR/FLAG-SKIP_ME" ]; then
+                  echo "Skip $DIR"
+                  continue
+              fi
+              ZIP_SUFFIX=""
+              if [ -f "$DIR/FLAG-TRX_BUILD" ]; then
+                  echo "TRX_BUILD=true" >> $GITHUB_ENV
+                  ZIP_SUFFIX=".trx"
+              fi
+              rm -f "$DIR"/FLAG-*
+              zip_name="./public/$(basename "$DIR")${ZIP_SUFFIX}.zip"
+              echo "Creating $zip_name"
+              ( cd "$DIR"; zip -0 -r "../$zip_name" . )
+          done
+
+      - name: Show all zip files
+        run: |
           ls -lh ./public/*.zip
+
+      - name: Generate names
+        env:
+          TAG: ${{ needs.check.outputs.tag }}
+          FW_VER: ${{ needs.check.outputs.fw_ver }}
+          FW_DATE: ${{ needs.check.outputs.fw_date }}
+        run: |
+          NAME="$TAG"
+          DESC="OpenWrt $FW_VER [$FW_DATE]"
+          if [ "$TRX_BUILD" = true ]; then
+              NAME="TRX-$TAG"
+              TAG="$TAG-trx"
+              DESC="TRX images based on $DESC"
+          fi
+          echo "REL_TAG=$TAG" >> $GITHUB_ENV
+          echo "REL_NAME=$NAME" >> $GITHUB_ENV
+          echo "REL_DESC=$DESC" >> $GITHUB_ENV
 
       - name: Upload assets
         uses: andelf/nightly-release@main
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG: ${{ needs.check.outputs.tag }}
         with:
           prerelease: true
-          tag_name: ${{ needs.check.outputs.tag }}${{ env.TAG_SUFFIX }}
-          name: '${{ needs.check.outputs.tag }}'
+          tag_name: ${{ env.REL_TAG }}${{ env.TAG_SUFFIX }}
+          name: '${{ env.REL_NAME }}'
           body: |
-            OpenWrt ${{ needs.check.outputs.fw_ver }} [${{ needs.check.outputs.fw_date }}]
+            ${{ env.REL_DESC }}
             author: [remittor](https://github.com/remittor)
           files: ./public/*.zip
