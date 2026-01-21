@@ -1,6 +1,6 @@
 [![Github All Releases](https://img.shields.io/github/downloads/openwrt-xiaomi/builder/total.svg)](https://github.com/openwrt-xiaomi/builder/releases)
+[![Github Latest Release](https://img.shields.io/github/downloads/openwrt-xiaomi/builder/latest/total.svg)](https://github.com/openwrt-xiaomi/builder/releases)
 [![ViewCount](https://views.whatilearened.today/views/github/openwrt-xiaomi/builder.svg)](https://github.com/openwrt-xiaomi/builder/releases)
-[![Hits](https://hits.seeyoufarm.com/api/count/incr/badge.svg?url=https%3A%2F%2Fgithub.com%2Fopenwrt-xiaomi%2Fbuilder&count_bg=%2379C83D&title_bg=%23555555&icon=&icon_color=%23E7E7E7&title=hits&edge_flat=false)](https://github.com/openwrt-xiaomi/builder/releases)
 [![Donations Page](https://github.com/andry81-cache/gh-content-static-cache/raw/master/common/badges/donate/donate.svg)](https://github.com/remittor/donate)
 
 # OpenWrt builder
