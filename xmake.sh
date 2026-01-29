@@ -117,12 +117,22 @@ function build_target {
 			sed -i 's/ squashfs-sys/ sys/g' $XDIR/target/linux/mediatek/image/mt7622.mk
 			sed -i 's/ squashfs-sys/ sys/g' $XDIR/target/linux/mediatek/image/mt7623.mk
 		fi
-	fi	
+	fi
+
+	BATADV_DIR=$XDIR/feeds/luci/protocols/luci-proto-batman-adv/htdocs/luci-static/resources/protocol
+	if [ -d $BATADV_DIR ]; then
+		if [ ! -f $BATADV_DIR/batadv_vlan.js ]; then
+			BATADV_VLAN_URL="https://github.com/luminem/luci/raw/4e0612a45e4be8c58de2bbd21c3bffbcf5252be4/protocols/luci-proto-batman-adv/htdocs/luci-static/resources/protocol/batadv_vlan.js"
+			curl -sSL "$BATADV_VLAN_URL" -o "$BATADV_DIR/batadv_vlan.js"
+			echo ">>> batman_adv patched !!!"
+		fi
+	fi
 	
 	RAB_LUCI_MK=$XDIR/package/feeds/_ruantiblock/luci-app-ruantiblock/Makefile
 	if [ -f $RAB_LUCI_MK ]; then
 		if ! grep "PKG_PROVIDES" $RAB_LUCI_MK >/dev/null ; then
 			sed -i 's/LUCI_PKGARCH:=all/LUCI_PKGARCH:=all\nPKG_PROVIDES:=luci-app-ruantiblock/g' $RAB_LUCI_MK
+			echo ">>> ruantiblock patched !!!"
 		fi
 	fi
 
