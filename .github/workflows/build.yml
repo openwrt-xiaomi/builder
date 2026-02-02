@@ -401,6 +401,11 @@ jobs:
             staging_dir/host
             build_dir/host
 
+      - name: Show host tools stamps
+        run: |
+          ls -la staging_dir/host/stamp/
+          ls -la staging_dir/host/stamp/ > logs/host_stamp_dir.txt
+
       - name: Configure 2
         id: configure2
         if: steps.tools.outputs.status == 'success'
