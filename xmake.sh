@@ -125,7 +125,7 @@ function build_target {
 		fi
 	fi
 	
-	if [ 1 = 1 ]; then
+	if ! grep '^CONFIG_BUILD_ALL_HOST_TOOLS=y' $CFG ; then
 		MK_HOST_TOOLS=$XDIR/tools/Makefile
 		# tools-$(if $(CONFIG_BUILD_ALL_HOST_TOOLS)$(CONFIG_USES_MINOR),y) += yafut
 		if grep -q '(CONFIG_USES_MINOR),y)' $MK_HOST_TOOLS ; then
