@@ -312,11 +312,18 @@ jobs:
           rm -rf build_dir/
           mkdir -p staging_dir/host
           mkdir -p build_dir/host
+          #############################################
+          CONFIG_BUILD_ALL_HOST_TOOLS=n
+          if grep '^CONFIG_BUILD_ALL_HOST_TOOLS=y' $CFG ; then
+              CONFIG_BUILD_ALL_HOST_TOOLS=y
+          fi
           ########### check tools Makefile ############
-          if grep -q '(CONFIG_USES_MINOR),y) += yafut' tools/Makefile ; then
-              echo WARN: file tools/Makefile allowed compile yafut
-              echo ERROR: yafut compile not supported !!!
-              exit 51
+          if [ "$CONFIG_BUILD_ALL_HOST_TOOLS" != y ]; then
+              if grep -q '(CONFIG_USES_MINOR),y) += yafut' tools/Makefile ; then
+                  echo WARN: file tools/Makefile allowed compile yafut
+                  echo ERROR: yafut compile not supported !!!
+                  exit 51
+              fi
           fi
           ########### get hash of dir with tools Makefiles ############
           TOOLS_SRC_CRC=$( echo $TOOLS_SRC_HASH | cksum | awk '{print $1}' )
@@ -345,7 +352,7 @@ jobs:
           			TOOLS_STATUS="$${TOOLS_STATUS}$${T_STATUS}" ; \
           			printf " %s\n" "$$tool"; \
           		done; \
-          		: > $(STAGING_DIR_HOST)/.tools_compile_$$TOOLS_STATUS; \
+          		printf "$$TOOLS_STATUS" > $(STAGING_DIR_HOST)/.tools_compile_mask; \
           	} > $(TOOLS_COMPILE_LIST)
           endef
           
@@ -361,11 +368,13 @@ jobs:
               exit 55
           fi
           cp -f $HOST_TOOLS_STG_DIR/.tools_compile_list  logs/tools_compile_list.txt
-          for fn in $HOST_TOOLS_STG_DIR/.tools_compile_[yn]*; do
-              [ -e $fn ] && cp -f $fn logs/$( basename "$fn" | sed 's/^\.//' )
-          done
           TOOLS_COMPILE_CRC=$( cat $TOOLS_STG_DIR/.tools_compile_list | cksum | awk '{print $1}' )
           echo "TOOLS_COMPILE_CRC=$TOOLS_COMPILE_CRC" >> $GITHUB_ENV
+          #######
+          TOOLS_COMPILE_MASK=$( cat $TOOLS_STG_DIR/.tools_compile_mask )
+          cp -f $HOST_TOOLS_STG_DIR/.tools_compile_mask  logs/tools_compile_mask.txt
+          touch logs/tools_compile_$TOOLS_COMPILE_MASK
+          echo TOOLS_COMPILE_MASK = $TOOLS_COMPILE_MASK
           ###################################################
           if [ "$USE_CACHE" = "true" ]; then
               echo USE_CACHE = $USE_CACHE
@@ -376,7 +385,7 @@ jobs:
           echo "HOST_TOOLS_BLD_DIR=$HOST_TOOLS_BLD_DIR" >> $GITHUB_ENV
           echo "status=success" >> $GITHUB_OUTPUT
 
-      - name: Restore cache for host tools
+      - name: Restore host tools from cache
         id: tools_cache_restore
         if: github.event.inputs.use_cache == 'true'
         uses: actions/cache/restore@v4
