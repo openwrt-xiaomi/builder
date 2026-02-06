@@ -514,7 +514,7 @@ jobs:
               fi
           fi
           echo "status=success" >> $GITHUB_OUTPUT
-          
+
       - name: Process out results
         id: install
         if: steps.compile.outputs.status == 'success' || env.FAKE_BUILD == 'true'
@@ -574,6 +574,37 @@ jobs:
           echo "BUILD FAILED" > $OUT_DIR/FAILED.txt
           echo "BLD_VER=$FW_VER" >> $GITHUB_ENV
           echo "OUT_DIR=$OUT_DIR" >> $GITHUB_ENV
+
+      - name: Build the TRX image without WiFi activation
+        id: compile_wifi_dis
+        if: steps.install.outputs.status == 'success' && env.TRX_BUILD == 'true' && env.FAKE_BUILD != 'true' && env.TEST_BUILD != 'true'
+        env: 
+          TARGET: ${{ matrix.target }}
+        run: |
+          BLD_OUT_DIR=$OUT_DIR
+          NEW_OUT_DIR=./xout
+          mv -f "$OUT_DIR" $NEW_OUT_DIR
+          echo "OUT_DIR=$NEW_OUT_DIR" >> $GITHUB_ENV
+          ./xmake.sh -W -i -t $TARGET
+          if [ ! -d "$BLD_OUT_DIR" ]; then
+              echo "OUT_DIR not found!"
+              exit 99
+          fi
+          cd "$BLD_OUT_DIR"
+          echo "Firmware TRX $BLD_VER [$FILE_DATE] builded!"
+          if [ ! -f kernel-debug.tar.zst ]; then
+              echo "File kernel-debug.tar.zst not found!"
+              exit 100
+          fi
+          find . -maxdepth 1 -type f ! -name '*-initramfs*' ! -name 'FLAG-*' -delete
+          VER_MAJOR=$( echo "$BLD_VER" | cut -d. -f1 )
+          WIFIDIS_DIR=$NEW_OUT_DIR/images-WiFi-disabled
+          mkdir -p $WIFIDIS_DIR
+          STD_IMG_DIR="$WIFIDIS_DIR/openwrt-initramfs-bin-for-luci"
+          mkdir -p $STD_IMG_DIR
+          find . -maxdepth 1 -type f -name '*-initramfs*.bin' -exec mv -f {} $STD_IMG_DIR/openwrt-${VER_MAJOR}_${TARGET}_initramfs_nowifi.bin \;
+          find . -maxdepth 1 -type f -name '*-initramfs*.trx' -exec mv -f {} $WIFIDIS_DIR/openwrt-${VER_MAJOR}_${TARGET}_initramfs_nowifi.trx \;
+          echo "status=success" >> $GITHUB_OUTPUT
 
       - name: Check space usage
         run: df -hT
