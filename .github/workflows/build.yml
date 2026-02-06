@@ -334,6 +334,9 @@ jobs:
           TOOLS_PREREQ_CRC=$( cat $HOST_TOOLS_STG_DIR/.prereq-build-list | cksum | awk '{print $1}' )
           cp -f $HOST_TOOLS_STG_DIR/.prereq-build-list   logs/prereq-build-list.txt
           echo "TOOLS_PREREQ_CRC=$TOOLS_PREREQ_CRC" >> $GITHUB_ENV
+          echo "::group::prereq-build-list"
+          cat $HOST_TOOLS_STG_DIR/.prereq-build-list
+          echo "::endgroup::"
           ########### patch for tools/Makefile ###############
           cat <<'EOF' >> tools/Makefile
           ###
@@ -370,6 +373,9 @@ jobs:
           cp -f $HOST_TOOLS_STG_DIR/.tools_compile_list  logs/tools_compile_list.txt
           TOOLS_COMPILE_CRC=$( cat $HOST_TOOLS_STG_DIR/.tools_compile_list | cksum | awk '{print $1}' )
           echo "TOOLS_COMPILE_CRC=$TOOLS_COMPILE_CRC" >> $GITHUB_ENV
+          echo "::group::tools_compile_list"
+          cat $HOST_TOOLS_STG_DIR/.tools_compile_list
+          echo "::endgroup::"
           #######
           TOOLS_COMPILE_MASK=$( cat $HOST_TOOLS_STG_DIR/.tools_compile_mask )
           cp -f $HOST_TOOLS_STG_DIR/.tools_compile_mask  logs/tools_compile_mask.txt
