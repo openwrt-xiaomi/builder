@@ -122,20 +122,36 @@ function build_target {
 	fi
 
 	if [ 1 = 1 ]; then
+		MK_IMAGE=$XDIR/include/image.mk
 		CURDATE=$( date --utc +%y%m%d )
-		############ change images prefix ############
-		# IMG_PREFIX:=$(VERSION_DIST_SANITIZED)-$(IMG_PREFIX_VERNUM)$(IMG_PREFIX_VERCODE)$(IMG_PREFIX_EXTRA)$(BOARD)$(if $(SUBTARGET),-$(SUBTARGET))
-		sed -i -e 's/^IMG_PREFIX:=.*/IMG_PREFIX:=$(VERSION_DIST_SANITIZED)-$(call sanitize,$(VERSION_NUMBER))-'$CURDATE'/g' $XDIR/include/image.mk
-		echo ">>> image.mk patched !!!"
+		if ! grep -q "(VERSION_NUMBER))-$CURDATE" $MK_IMAGE ; then
+			############ change images prefix ############
+			# IMG_PREFIX:=$(VERSION_DIST_SANITIZED)-$(IMG_PREFIX_VERNUM)$(IMG_PREFIX_VERCODE)$(IMG_PREFIX_EXTRA)$(BOARD)$(if $(SUBTARGET),-$(SUBTARGET))
+			sed -i -e 's/^IMG_PREFIX:=.*/IMG_PREFIX:=$(VERSION_DIST_SANITIZED)-$(call sanitize,$(VERSION_NUMBER))-'$CURDATE'/g' $MK_IMAGE
+			echo ">>> image.mk patched !!! (IMG_PREFIX)"
+		fi
 	fi
 	if [ 1 = 1 ]; then
 		############ remove "squashfs" suffix ############
-		#   DEVICE_IMG_NAME = $$(DEVICE_IMG_PREFIX)-$$(1)-$$(2)
-		sed -i -e 's/.*DEVICE_IMG_NAME =.*/  DEVICE_IMG_NAME = $$(DEVICE_IMG_PREFIX)-$$(2)/g' $XDIR/include/image.mk
-		if grep "squashfs-sys" $XDIR/target/linux/mediatek/image/filogic.mk >/dev/null ; then
+		MK_IMAGE=$XDIR/include/image.mk
+		if grep -q 'DEVICE_IMG_NAME = $$(DEVICE_IMG_PREFIX)-$$(1)-$$(2)' $MK_IMAGE ; then
+			sed -i -e 's/.*DEVICE_IMG_NAME =.*/  DEVICE_IMG_NAME = $$(DEVICE_IMG_PREFIX)-$$(2)/g' $MK_IMAGE
+			echo ">>> image.mk patched !!! (DEVICE_IMG_NAME)"
+		fi
+		if grep -q "squashfs-sys" $XDIR/target/linux/mediatek/image/filogic.mk ; then
 			sed -i 's/ squashfs-sys/ sys/g' $XDIR/target/linux/mediatek/image/filogic.mk
 			sed -i 's/ squashfs-sys/ sys/g' $XDIR/target/linux/mediatek/image/mt7622.mk
 			sed -i 's/ squashfs-sys/ sys/g' $XDIR/target/linux/mediatek/image/mt7623.mk
+		fi
+	fi
+	
+	if ! grep '^CONFIG_BUILD_ALL_HOST_TOOLS=y' $CFG ; then
+		MK_HOST_TOOLS=$XDIR/tools/Makefile
+		# tools-$(if $(CONFIG_BUILD_ALL_HOST_TOOLS)$(CONFIG_USES_MINOR),y) += yafut
+		if grep -q '(CONFIG_USES_MINOR),y)' $MK_HOST_TOOLS ; then
+			# disable build yafut - not support devices with yaffs !!!
+			sed -i 's/\$(CONFIG_USES_MINOR),y)/,y)/g' $MK_HOST_TOOLS
+			echo ">>> tools/Makefile patched !!! (disable yafut)"
 		fi
 	fi
 
@@ -232,7 +248,16 @@ function build_target {
 		echo ">>> dropbear downgraded to 2024.86 !!!"
 	fi
 
+	HOST_TOOLS_DIR=$XDIR/staging_dir/host
+	HOST_TOOLS_STAGE=0
+	[ -d $HOST_TOOLS_DIR ] && HOST_TOOLS_STAGE=1
+
 	make defconfig
+	
+	if [ -d $HOST_TOOLS_DIR -a $HOST_TOOLS_STAGE = 0 ]; then
+		ls -la $HOST_TOOLS_DIR/bin | awk '{print $9 " -> " $11}' | sort > $HOST_TOOLS_DIR/.prereq-build-list
+		#cat $HOST_TOOLS_DIR/.prereq-build-list | cksum | awk '{print $1}' > $HOST_TOOLS_DIR/.prereq-build-list.crc
+	fi
 
 	NSS_DRV_PPPOE_ENABLE=$( get_cfg_opt_flag $CFG NSS_DRV_PPPOE_ENABLE )
 	if [ "$NSS_DRV_PPPOE_ENABLE" = y ]; then
