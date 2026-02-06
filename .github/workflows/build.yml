@@ -330,7 +330,7 @@ jobs:
           echo $TOOLS_SRC_CRC > logs/host_tools_sources.crc
           echo "TOOLS_SRC_CRC=$TOOLS_SRC_CRC" >> $GITHUB_ENV
           ########### get prereq tools (w/o compile) ############
-          ls -la $HOST_TOOLS_DIR/bin | awk '{print $9 " -> " $11}' | sort > $HOST_TOOLS_STG_DIR/.prereq-build-list
+          ls -la $HOST_TOOLS_STG_DIR/bin | awk '{print $9 " -> " $11}' | sort > $HOST_TOOLS_STG_DIR/.prereq-build-list
           TOOLS_PREREQ_CRC=$( cat $HOST_TOOLS_STG_DIR/.prereq-build-list | cksum | awk '{print $1}' )
           cp -f $HOST_TOOLS_STG_DIR/.prereq-build-list   logs/prereq-build-list.txt
           echo "TOOLS_PREREQ_CRC=$TOOLS_PREREQ_CRC" >> $GITHUB_ENV
