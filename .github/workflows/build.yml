@@ -596,7 +596,7 @@ jobs:
           TARGET: ${{ matrix.target }}
         run: |
           BLD_OUT_DIR=$OUT_DIR
-          NEW_OUT_DIR=./xout
+          NEW_OUT_DIR=$GITHUB_WORKSPACE/xout
           mv -f "$OUT_DIR" $NEW_OUT_DIR
           echo "OUT_DIR=$NEW_OUT_DIR" >> $GITHUB_ENV
           ./xmake.sh -W -i -t $TARGET
@@ -610,7 +610,7 @@ jobs:
               echo "File kernel-debug.tar.zst not found!"
               exit 100
           fi
-          find . -maxdepth 1 -type f ! -name '*-initramfs*' ! -name 'FLAG-*' -delete
+          find . -maxdepth 1 -type f ! -name '*-initramfs*' -delete
           VER_MAJOR=$( echo "$BLD_VER" | cut -d. -f1 )
           WIFIDIS_DIR=$NEW_OUT_DIR/images-WiFi-disabled
           mkdir -p $WIFIDIS_DIR
