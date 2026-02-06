@@ -281,6 +281,9 @@ jobs:
           if [ $(find . -maxdepth 1 -name "$VERMAGIC_LIST" | wc -l) = "0" ]; then
               exit 41
           fi
+          echo "::group::disabled_services.lst"
+          cat disabled_services.lst || echo '<<< file disabled_services.lst not found >>>'
+          echo "::endgroup::"
           FILE_DATE=$(date --utc +'%y%m%d')
           echo "status=success" >> $GITHUB_OUTPUT
           echo "FW_VER=$FW_VER" >> $GITHUB_ENV
@@ -483,6 +486,9 @@ jobs:
           cp -a logs_backup logs
           ./xmake.sh $OPT_INITRAMFS -I -t $TARGET
           cp -f .config logs/config2
+          echo "::group::disabled_services.lst"
+          cat disabled_services.lst || echo '<<< file disabled_services.lst not found >>>'
+          echo "::endgroup::"
 
       - name: Kernel compile
         id: kernel
