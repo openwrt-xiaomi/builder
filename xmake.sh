@@ -101,6 +101,26 @@ function build_target {
 		echo "CONFIG_TESTING_KERNEL=y" >> $CFG
 	fi
 
+	X_VERSION_MK=$XDIR/include/version.mk
+	X_VERSION_NUMBER=$( grep -o -P '(?<=,\$\(VERSION_NUMBER\),).*(?=\))' $X_VERSION_MK 2>/dev/null )
+	[ -z "$X_VERSION_NUMBER" ] && { echo "ERROR: Cannot determine VERSION_NUMBER"; exit 30; }
+	echo "VERSION_NUMBER = $X_VERSION_NUMBER"
+
+	X_BOARD_NAME=$( sed -n 's/^CONFIG_TARGET_\([^_=\n]\+\)=y$/\1/p' $CFG )
+	[ -z "$X_BOARD_NAME" ] && { echo "ERROR: cannot found BOARD_NAME"; exit 31; }
+	X_SUBTARGET_NAME=$( sed -n 's/^CONFIG_TARGET_[^_=\n]\+_\([^_=\n]\+\)=y$/\1/p' $CFG )
+	[ -z "$X_SUBTARGET_NAME" ] && { echo "ERROR: cannot found SUBTARGET"; exit 31; }
+	echo "BOARD_NAME = $X_BOARD_NAME   SUBTARGET = $X_SUBTARGET_NAME"
+	
+	VERMAGIC_FN=$XDIR/vermagic-$X_BOARD_NAME-$X_SUBTARGET_NAME-$X_VERSION_NUMBER.list
+	if [ ! -f $VERMAGIC_FN -a -f $XDIR/vermagic_update.sh ]; then
+		bash $XDIR/vermagic_update.sh $X_BOARD_NAME $X_SUBTARGET_NAME
+		if [ ! -f $VERMAGIC_FN ]; then
+			echo "ERROR: cannot create file $VERMAGIC_FN"
+			exit 41
+		fi 
+	fi
+
 	if [ 1 = 1 ]; then
 		CURDATE=$( date --utc +%y%m%d )
 		############ change images prefix ############
