@@ -12,16 +12,18 @@ fi
 MAKE_JOBS=
 XTARGET=
 OPT_FULL_REBUILD=false
+WIFI_EN=true
 KALLSYMS=false
 TESTING_KERNEL=false
 BUILD_ONLY_INITRAMFS=false
 ONLY_INIT=false
 
-while getopts "j:t:fiskTI" opt; do
+while getopts "j:t:fisWkTI" opt; do
 	case $opt in
 		j) MAKE_JOBS=$OPTARG;;
 		t) XTARGET=$OPTARG;;
 		f) OPT_FULL_REBUILD=true;;
+		W) WIFI_EN=false;;
 		k) KALLSYMS=true;;
 		T) TESTING_KERNEL=true;;
 		i) BUILD_ONLY_INITRAMFS=true;;
@@ -70,6 +72,7 @@ function build_target {
 	for inc in $inclst; do
 		incfn=$XDIR/_cfginc/$inc
 		[ ! -f $incfn ] && die "File '$inc' not found!"
+		[ "$WIFI_EN" == false -a $inc == "_wifi_en.config" ] && continue
 		sed -i "/#include $inc/a <<LF>><<LF>>" $CFG
 		sed -i "s/<<LF>>/\n/g" $CFG
 		sed -i "/#include $inc/ r $incfn" $CFG

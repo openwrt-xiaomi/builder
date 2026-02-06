@@ -17,7 +17,7 @@ else
 fi
 
 log_msg() {
-	printf "%s\n" "$1" >&$OUTPUT_PIPE
+	printf "%s\n" "$1" >&8 || printf "%s\n" "$1"
 }
 
 log_err() {
@@ -28,7 +28,7 @@ log_err() {
 		_R=\\033[31m
 		_N=\\033[m
 	fi
-	printf "$_R%s$_N\n" "ERROR: $msg" >&$OUTPUT_PIPE
+	printf "$_R%s$_N\n" "ERROR: $msg" >&8 || printf "$_R%s$_N\n" "ERROR: $msg"
 }
 
 die() {
@@ -150,6 +150,8 @@ if [ -f "$WIFI77_FN" ]; then
 			WIFI_COUNTRY=$( get_param_qq CONFIG_PACKAGE_MAC80211_COUNTRY "$TOPDIR/.config" )
 			sed -i "s#%COUNTRY%#${WIFI_COUNTRY}#g" "$WIFI77_FN"
 		fi
+	else
+		rm -f "$WIFI77_FN"
 	fi
 fi
 
