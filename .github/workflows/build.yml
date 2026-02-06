@@ -369,10 +369,10 @@ jobs:
               exit 55
           fi
           cp -f $HOST_TOOLS_STG_DIR/.tools_compile_list  logs/tools_compile_list.txt
-          TOOLS_COMPILE_CRC=$( cat $TOOLS_STG_DIR/.tools_compile_list | cksum | awk '{print $1}' )
+          TOOLS_COMPILE_CRC=$( cat $HOST_TOOLS_STG_DIR/.tools_compile_list | cksum | awk '{print $1}' )
           echo "TOOLS_COMPILE_CRC=$TOOLS_COMPILE_CRC" >> $GITHUB_ENV
           #######
-          TOOLS_COMPILE_MASK=$( cat $TOOLS_STG_DIR/.tools_compile_mask )
+          TOOLS_COMPILE_MASK=$( cat $HOST_TOOLS_STG_DIR/.tools_compile_mask )
           cp -f $HOST_TOOLS_STG_DIR/.tools_compile_mask  logs/tools_compile_mask.txt
           touch logs/tools_compile_$TOOLS_COMPILE_MASK
           echo TOOLS_COMPILE_MASK = $TOOLS_COMPILE_MASK
