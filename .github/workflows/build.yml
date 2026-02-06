@@ -311,7 +311,6 @@ jobs:
           echo USE_CACHE = $USE_CACHE
           HOST_TOOLS_STG_DIR=staging_dir/host
           HOST_TOOLS_BLD_DIR=build_dir/host
-          rm -rf staging_dir/
           rm -rf build_dir/
           mkdir -p staging_dir/host
           mkdir -p build_dir/host
