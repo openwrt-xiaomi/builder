@@ -459,8 +459,10 @@ jobs:
 
       - name: Show host tools stamps
         run: |
-          ls -la staging_dir/host/stamp/
-          ls -la staging_dir/host/stamp/ > logs/host_stamp_dir.txt
+          if [ -d staging_dir/host/stamp ]; then
+              ls -la staging_dir/host/stamp/
+              ls -la staging_dir/host/stamp/ > logs/host_stamp_dir.txt
+          fi
 
       - name: Configure 2
         id: configure2
