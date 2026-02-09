@@ -282,6 +282,9 @@ jobs:
           if [ $(find . -maxdepth 1 -name "$VERMAGIC_LIST" | wc -l) = "0" ]; then
               exit 41
           fi
+          echo "::group::disabled_services.lst"
+          cat disabled_services.lst || echo '<<< file disabled_services.lst not found >>>'
+          echo "::endgroup::"
           FILE_DATE=$(date --utc +'%y%m%d')
           echo "status=success" >> $GITHUB_OUTPUT
           echo "FW_VER=$FW_VER" >> $GITHUB_ENV
@@ -305,11 +308,11 @@ jobs:
           TARGET: ${{ matrix.target }}
           USE_CACHE: ${{ github.event.inputs.use_cache }}
           CACHE_VER: ${{ github.event.inputs.cache_ver }}
+          INP_TRX_BUILD: ${{ github.event.inputs.trx_build == 'true' }}
         run: |
           echo USE_CACHE = $USE_CACHE
           HOST_TOOLS_STG_DIR=staging_dir/host
           HOST_TOOLS_BLD_DIR=build_dir/host
-          rm -rf staging_dir/
           rm -rf build_dir/
           mkdir -p staging_dir/host
           mkdir -p build_dir/host
@@ -331,10 +334,13 @@ jobs:
           echo $TOOLS_SRC_CRC > logs/host_tools_sources.crc
           echo "TOOLS_SRC_CRC=$TOOLS_SRC_CRC" >> $GITHUB_ENV
           ########### get prereq tools (w/o compile) ############
-          ls -la $HOST_TOOLS_DIR/bin | awk '{print $9 " -> " $11}' | sort > $HOST_TOOLS_STG_DIR/.prereq-build-list
+          ls -la $HOST_TOOLS_STG_DIR/bin | awk '{print $9 " -> " $11}' | sort > $HOST_TOOLS_STG_DIR/.prereq-build-list
           TOOLS_PREREQ_CRC=$( cat $HOST_TOOLS_STG_DIR/.prereq-build-list | cksum | awk '{print $1}' )
           cp -f $HOST_TOOLS_STG_DIR/.prereq-build-list   logs/prereq-build-list.txt
           echo "TOOLS_PREREQ_CRC=$TOOLS_PREREQ_CRC" >> $GITHUB_ENV
+          echo "::group::prereq-build-list"
+          cat $HOST_TOOLS_STG_DIR/.prereq-build-list
+          echo "::endgroup::"
           ########### patch for tools/Makefile ###############
           cat <<'EOF' >> tools/Makefile
           ###
@@ -371,6 +377,9 @@ jobs:
           cp -f $HOST_TOOLS_STG_DIR/.tools_compile_list  logs/tools_compile_list.txt
           TOOLS_COMPILE_CRC=$( cat $HOST_TOOLS_STG_DIR/.tools_compile_list | cksum | awk '{print $1}' )
           echo "TOOLS_COMPILE_CRC=$TOOLS_COMPILE_CRC" >> $GITHUB_ENV
+          echo "::group::tools_compile_list"
+          cat $HOST_TOOLS_STG_DIR/.tools_compile_list
+          echo "::endgroup::"
           #######
           TOOLS_COMPILE_MASK=$( cat $HOST_TOOLS_STG_DIR/.tools_compile_mask )
           cp -f $HOST_TOOLS_STG_DIR/.tools_compile_mask  logs/tools_compile_mask.txt
@@ -379,6 +388,9 @@ jobs:
           ###################################################
           if [ "$USE_CACHE" = "true" ]; then
               echo USE_CACHE = $USE_CACHE
+          fi
+          if [ "$INP_TRX_BUILD" = true ]; then
+              CACHE_VER=$CACHE_VER-trx
           fi
           echo "USE_CACHE=$USE_CACHE" >> $GITHUB_ENV
           echo "CACHE_VER=$CACHE_VER" >> $GITHUB_ENV
@@ -460,8 +472,10 @@ jobs:
 
       - name: Show host tools stamps
         run: |
-          ls -la staging_dir/host/stamp/
-          ls -la staging_dir/host/stamp/ > logs/host_stamp_dir.txt
+          if [ -d staging_dir/host/stamp ]; then
+              ls -la staging_dir/host/stamp/
+              ls -la staging_dir/host/stamp/ > logs/host_stamp_dir.txt
+          fi
 
       - name: Configure 2
         id: configure2
@@ -476,6 +490,9 @@ jobs:
           cp -a logs_backup logs
           ./xmake.sh $OPT_INITRAMFS -I -t $TARGET
           cp -f .config logs/config2
+          echo "::group::disabled_services.lst"
+          cat disabled_services.lst || echo '<<< file disabled_services.lst not found >>>'
+          echo "::endgroup::"
 
       - name: Kernel compile
         id: kernel
@@ -575,6 +592,37 @@ jobs:
           echo "BUILD FAILED" > $OUT_DIR/FAILED.txt
           echo "BLD_VER=$FW_VER" >> $GITHUB_ENV
           echo "OUT_DIR=$OUT_DIR" >> $GITHUB_ENV
+
+      - name: Build the TRX image without WiFi activation
+        id: compile_wifi_dis
+        if: steps.install.outputs.status == 'success' && env.TRX_BUILD == 'true' && env.FAKE_BUILD != 'true' && env.TEST_BUILD != 'true'
+        env: 
+          TARGET: ${{ matrix.target }}
+        run: |
+          BLD_OUT_DIR=$OUT_DIR
+          NEW_OUT_DIR=$GITHUB_WORKSPACE/xout
+          mv -f "$OUT_DIR" $NEW_OUT_DIR
+          echo "OUT_DIR=$NEW_OUT_DIR" >> $GITHUB_ENV
+          ./xmake.sh -W -i -t $TARGET
+          if [ ! -d "$BLD_OUT_DIR" ]; then
+              echo "OUT_DIR not found!"
+              exit 99
+          fi
+          cd "$BLD_OUT_DIR"
+          echo "Firmware TRX $BLD_VER [$FILE_DATE] builded!"
+          if [ ! -f kernel-debug.tar.zst ]; then
+              echo "File kernel-debug.tar.zst not found!"
+              exit 100
+          fi
+          find . -maxdepth 1 -type f ! -name '*-initramfs*' -delete
+          VER_MAJOR=$( echo "$BLD_VER" | cut -d. -f1 )
+          WIFIDIS_DIR=$NEW_OUT_DIR/images-WiFi-disabled
+          mkdir -p $WIFIDIS_DIR
+          STD_IMG_DIR="$WIFIDIS_DIR/openwrt-initramfs-bin-for-luci"
+          mkdir -p $STD_IMG_DIR
+          find . -maxdepth 1 -type f -name '*-initramfs*.bin' -exec mv -f {} $STD_IMG_DIR/openwrt-${VER_MAJOR}_${TARGET}_initramfs_nowifi.bin \;
+          find . -maxdepth 1 -type f -name '*-initramfs*.trx' -exec mv -f {} $WIFIDIS_DIR/openwrt-${VER_MAJOR}_${TARGET}_initramfs_nowifi.trx \;
+          echo "status=success" >> $GITHUB_OUTPUT
 
       - name: Check space usage
         run: df -hT
