@@ -307,6 +307,7 @@ jobs:
           TARGET: ${{ matrix.target }}
           USE_CACHE: ${{ github.event.inputs.use_cache }}
           CACHE_VER: ${{ github.event.inputs.cache_ver }}
+          INP_TRX_BUILD: ${{ github.event.inputs.trx_build == 'true' }}
         run: |
           echo USE_CACHE = $USE_CACHE
           HOST_TOOLS_STG_DIR=staging_dir/host
@@ -386,6 +387,9 @@ jobs:
           ###################################################
           if [ "$USE_CACHE" = "true" ]; then
               echo USE_CACHE = $USE_CACHE
+          fi
+          if [ "$INP_TRX_BUILD" = true ]; then
+              CACHE_VER=$CACHE_VER-trx
           fi
           echo "USE_CACHE=$USE_CACHE" >> $GITHUB_ENV
           echo "CACHE_VER=$CACHE_VER" >> $GITHUB_ENV
