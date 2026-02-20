@@ -116,7 +116,7 @@ function build_target {
 	echo "BOARD_NAME = $X_BOARD_NAME   SUBTARGET = $X_SUBTARGET_NAME"
 	
 	VERMAGIC_FN=$XDIR/vermagic-$X_BOARD_NAME-$X_SUBTARGET_NAME-$X_VERSION_NUMBER.list
-	if [ ! -f $VERMAGIC_FN -a -f $XDIR/vermagic_update.sh ]; then
+	if [ ! -f $VERMAGIC_FN ] && [ -f $XDIR/vermagic_update.sh ]; then
 		bash $XDIR/vermagic_update.sh $X_BOARD_NAME $X_SUBTARGET_NAME
 		if [ ! -f $VERMAGIC_FN ]; then
 			echo "ERROR: cannot create file $VERMAGIC_FN"
