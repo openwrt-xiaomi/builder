@@ -167,6 +167,14 @@ function build_target {
 		fi
 	fi
 	
+	LIBUTP_MK=$XDIR/package/feeds/packages/libutp/Makefile
+	if [ -f $LIBUTP_MK ]; then
+		if grep -q 'DLIBUTP_ENABLE_WERROR:BOOL=YES' $LIBUTP_MK ; then
+			sed -i 's/-DLIBUTP_ENABLE_WERROR:BOOL=YES/-DLIBUTP_ENABLE_WERROR:BOOL=NO/' $LIBUTP_MK
+			echo ">>> libutp patched !!! (disable Werror)"
+		fi
+	fi
+
 	RAB_LUCI_MK=$XDIR/package/feeds/_ruantiblock/luci-app-ruantiblock/Makefile
 	if [ -f $RAB_LUCI_MK ]; then
 		if ! grep "PKG_PROVIDES" $RAB_LUCI_MK >/dev/null ; then
