@@ -159,6 +159,7 @@ jobs:
           - r3p
           - rb03
           - rb06
+          - rb06_uboot
           - rd03
           - rt-ax52
           - rt-ax57m
