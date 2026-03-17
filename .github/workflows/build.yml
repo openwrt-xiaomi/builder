@@ -245,9 +245,12 @@ jobs:
           rm -rf openwrt  
 
       - name: Init builder
+        env:
+          TOOLS_SRC_HASH: ${{ hashFiles('tools/**') }}
         run: |
           chmod +x *.sh
           wget https://github.com/fantastic-packages/packages/raw/refs/heads/24.10/keys/usign/53FF2B6672243D28.pub
+          echo "TOOLS_SRC_HASH=$TOOLS_SRC_HASH" >> $GITHUB_ENV
 
       - name: Update OpenWrt packages
         id: update
@@ -256,71 +259,10 @@ jobs:
           mkdir -p logs
           echo "status=success" >> $GITHUB_OUTPUT
           
-      - name: Prepare for cache
-        id: cache_prepare
-        env: 
-          TARGET: ${{ matrix.target }}
-          USE_CACHE: ${{ github.event.inputs.use_cache }}
-          CACHE_VER: ${{ github.event.inputs.cache_ver }}
-        run: |
-          if [ "$USE_CACHE" = "true" ]; then
-              rm -rf staging_dir/
-              mkdir -p staging_dir/host
-              rm -rf build_dir/
-              mkdir -p build_dir/host
-          fi
-          if [[ " kng_re r3g r3p " == *" $TARGET "* ]]; then
-              CACHE_ARCH=mips
-          else
-              CACHE_ARCH=arm
-          fi
-          echo "CACHE_ARCH = $CACHE_ARCH"
-          echo "USE_CACHE=$USE_CACHE" >> $GITHUB_ENV
-          echo "CACHE_VER=$CACHE_VER" >> $GITHUB_ENV
-          echo "CACHE_ARCH=$CACHE_ARCH" >> $GITHUB_ENV
-          echo "status=success" >> $GITHUB_OUTPUT
-
-      - name: Restore cache for host tools
-        id: tools_cache_restore
-        if: github.event.inputs.use_cache == 'true'
-        uses: actions/cache/restore@v4
-        with:
-          key: host-tools-${{ env.CACHE_VER }}-${{ env.CACHE_ARCH }}-${{ hashFiles('tools/**') }}
-          path: |
-            staging_dir/host
-            build_dir/host
-
-      - name: Fix time stamps into restored dirs
-        if: github.event.inputs.use_cache == 'true' && steps.tools_cache_restore.outputs.cache-hit == 'true'
-        run: |
-          touch staging_dir/host/.prepared
-          touch staging_dir/host/.prereq-build
-          touch staging_dir/host/stamp/.* 2>/dev/null
-          find build_dir/host -name ".prepared*"  -exec touch {} +
-          find build_dir/host -name ".configured" -exec touch {} +
-          find build_dir/host -name ".built"      -exec touch {} +
-
-      - name: Inspect restored host tools
-        if: github.event.inputs.use_cache == 'true'
-        run: |
-          echo "====== openwrt-native.txt ======"
-          cat build_dir/host/pkgconf-*/openwrt-native.txt || true
-          echo "====== staging_dir/host ====="
-          du -sh staging_dir/host || true
-          ls -la staging_dir/host || true
-          echo "====== staging_dir/host/bin ====="
-          du -sh staging_dir/host/bin || true
-          ls -1  staging_dir/host/bin | head -20 || true
-          echo "====== build_dir/host ======="
-          du -sh build_dir/host || true
-          ls -1  build_dir/host | head -20 || true
-          echo "====== path info ========"
-          grep -R "/home/runner" build_dir/host | head
-
       - name: Configure
         id: configure
         if: steps.update.outputs.status == 'success'
-        env: 
+        env:
           TARGET: ${{ matrix.target }}
           FW_VER: ${{ needs.check.outputs.fw_ver }}
         run: |
@@ -340,6 +282,9 @@ jobs:
           if [ $(find . -maxdepth 1 -name "$VERMAGIC_LIST" | wc -l) = "0" ]; then
               exit 41
           fi
+          echo "::group::disabled_services.lst"
+          cat disabled_services.lst || echo '<<< file disabled_services.lst not found >>>'
+          echo "::endgroup::"
           FILE_DATE=$(date --utc +'%y%m%d')
           echo "status=success" >> $GITHUB_OUTPUT
           echo "FW_VER=$FW_VER" >> $GITHUB_ENV
@@ -356,6 +301,139 @@ jobs:
           echo "========================"
           cp -f .config logs/config1
           cp -f .config config1
+
+      - name: Prepare for host tools
+        id: tools_prepare
+        env: 
+          TARGET: ${{ matrix.target }}
+          USE_CACHE: ${{ github.event.inputs.use_cache }}
+          CACHE_VER: ${{ github.event.inputs.cache_ver }}
+          INP_TRX_BUILD: ${{ github.event.inputs.trx_build == 'true' }}
+        run: |
+          echo USE_CACHE = $USE_CACHE
+          HOST_TOOLS_STG_DIR=staging_dir/host
+          HOST_TOOLS_BLD_DIR=build_dir/host
+          rm -rf build_dir/
+          mkdir -p staging_dir/host
+          mkdir -p build_dir/host
+          #############################################
+          CONFIG_BUILD_ALL_HOST_TOOLS=n
+          if grep '^CONFIG_BUILD_ALL_HOST_TOOLS=y' $CFG ; then
+              CONFIG_BUILD_ALL_HOST_TOOLS=y
+          fi
+          ########### check tools Makefile ############
+          if [ "$CONFIG_BUILD_ALL_HOST_TOOLS" != y ]; then
+              if grep -q '(CONFIG_USES_MINOR),y) += yafut' tools/Makefile ; then
+                  echo WARN: file tools/Makefile allowed compile yafut
+                  echo ERROR: yafut compile not supported !!!
+                  exit 51
+              fi
+          fi
+          ########### get hash of dir with tools Makefiles ############
+          TOOLS_SRC_CRC=$( echo $TOOLS_SRC_HASH | cksum | awk '{print $1}' )
+          echo $TOOLS_SRC_CRC > logs/host_tools_sources.crc
+          echo "TOOLS_SRC_CRC=$TOOLS_SRC_CRC" >> $GITHUB_ENV
+          ########### get prereq tools (w/o compile) ############
+          ls -la $HOST_TOOLS_STG_DIR/bin | awk '{print $9 " -> " $11}' | sort > $HOST_TOOLS_STG_DIR/.prereq-build-list
+          TOOLS_PREREQ_CRC=$( cat $HOST_TOOLS_STG_DIR/.prereq-build-list | cksum | awk '{print $1}' )
+          cp -f $HOST_TOOLS_STG_DIR/.prereq-build-list   logs/prereq-build-list.txt
+          echo "TOOLS_PREREQ_CRC=$TOOLS_PREREQ_CRC" >> $GITHUB_ENV
+          echo "::group::prereq-build-list"
+          cat $HOST_TOOLS_STG_DIR/.prereq-build-list
+          echo "::endgroup::"
+          ########### patch for tools/Makefile ###############
+          cat <<'EOF' >> tools/Makefile
+          ###
+          ### patch for getinfo
+          ###
+          TOOLS_COMPILE_LIST := $(STAGING_DIR_HOST)/.tools_compile_list
+          define gen_tools_compile_list
+          	@echo "Generating $(TOOLS_COMPILE_LIST)"
+          	@mkdir -p $(STAGING_DIR_HOST)
+          	rm -f $(STAGING_DIR_HOST)/.tools_compile_*
+          	@{ \
+          		TOOLS_STATUS=""; \
+          		for tool in $(sort $(tools-y) $(tools-)); do \
+          			T_STATUS="n"; \
+          			if echo " $(tools-y) " | grep -q " $$tool " ; then T_STATUS="y"; printf "+"; else printf " "; fi; \
+          			TOOLS_STATUS="$${TOOLS_STATUS}$${T_STATUS}" ; \
+          			printf " %s\n" "$$tool"; \
+          		done; \
+          		printf "$$TOOLS_STATUS" > $(STAGING_DIR_HOST)/.tools_compile_mask; \
+          	} > $(TOOLS_COMPILE_LIST)
+          endef
+          
+          $(curdir)/getinfo: .config prereq
+          	$(call gen_tools_compile_list)
+          
+          $(curdir)/prepare: $(curdir)/getinfo
+          EOF
+          ########## end of patch tools/Makefile ############
+          make tools/getinfo
+          if [ ! -f $HOST_TOOLS_STG_DIR/.tools_compile_list ]; then
+              echo ERROR: File $HOST_TOOLS_STG_DIR/.tools_compile_list not found!
+              exit 55
+          fi
+          cp -f $HOST_TOOLS_STG_DIR/.tools_compile_list  logs/tools_compile_list.txt
+          TOOLS_COMPILE_CRC=$( cat $HOST_TOOLS_STG_DIR/.tools_compile_list | cksum | awk '{print $1}' )
+          echo "TOOLS_COMPILE_CRC=$TOOLS_COMPILE_CRC" >> $GITHUB_ENV
+          echo "::group::tools_compile_list"
+          cat $HOST_TOOLS_STG_DIR/.tools_compile_list
+          echo "::endgroup::"
+          #######
+          TOOLS_COMPILE_MASK=$( cat $HOST_TOOLS_STG_DIR/.tools_compile_mask )
+          cp -f $HOST_TOOLS_STG_DIR/.tools_compile_mask  logs/tools_compile_mask.txt
+          touch logs/tools_compile_$TOOLS_COMPILE_MASK
+          echo TOOLS_COMPILE_MASK = $TOOLS_COMPILE_MASK
+          ###################################################
+          if [ "$USE_CACHE" = "true" ]; then
+              echo USE_CACHE = $USE_CACHE
+          fi
+          if [ "$INP_TRX_BUILD" = true ]; then
+              CACHE_VER=$CACHE_VER-trx
+          fi
+          echo "USE_CACHE=$USE_CACHE" >> $GITHUB_ENV
+          echo "CACHE_VER=$CACHE_VER" >> $GITHUB_ENV
+          echo "HOST_TOOLS_STG_DIR=$HOST_TOOLS_STG_DIR" >> $GITHUB_ENV
+          echo "HOST_TOOLS_BLD_DIR=$HOST_TOOLS_BLD_DIR" >> $GITHUB_ENV
+          echo "status=success" >> $GITHUB_OUTPUT
+
+      - name: Restore host tools from cache
+        id: tools_cache_restore
+        if: github.event.inputs.use_cache == 'true'
+        uses: actions/cache/restore@v4
+        with:
+          key: host-tools-${{ env.CACHE_VER }}-${{ env.TOOLS_SRC_CRC }}-${{ env.TOOLS_PREREQ_CRC }}-${{ env.TOOLS_COMPILE_CRC }}
+          path: |
+            staging_dir/host
+            build_dir/host
+
+      - name: Fix time stamps into restored dirs
+        if: github.event.inputs.use_cache == 'true' && steps.tools_cache_restore.outputs.cache-hit == 'true'
+        run: |
+          touch $HOST_TOOLS_STG_DIR/.prepared
+          touch $HOST_TOOLS_STG_DIR/.prereq-build
+          touch $HOST_TOOLS_STG_DIR/stamp/.* 2>/dev/null
+          find  $HOST_TOOLS_BLD_DIR -name ".prepared*"  -exec touch {} +
+          find  $HOST_TOOLS_BLD_DIR -name ".configured" -exec touch {} +
+          find  $HOST_TOOLS_BLD_DIR -name ".built"      -exec touch {} +
+
+      - name: Inspect restored host tools
+        if: github.event.inputs.use_cache == 'true'
+        run: |
+          echo "====== openwrt-native.txt ======"
+          cat $HOST_TOOLS_BLD_DIR/pkgconf-*/openwrt-native.txt || true
+          echo "====== staging_dir/host ====="
+          du -sh $HOST_TOOLS_STG_DIR || true
+          ls -la $HOST_TOOLS_STG_DIR || true
+          echo "====== staging_dir/host/bin ====="
+          du -sh $HOST_TOOLS_STG_DIR/bin || true
+          ls -1  $HOST_TOOLS_STG_DIR/bin | head -20 || true
+          echo "====== build_dir/host ======="
+          du -sh $HOST_TOOLS_BLD_DIR || true
+          ls -1  $HOST_TOOLS_BLD_DIR | head -20 || true
+          echo "====== path info ========"
+          grep -R "/home/runner" $HOST_TOOLS_BLD_DIR | head
 
       - name: Monitor memory
         run: |
@@ -375,16 +453,6 @@ jobs:
           make -j$(nproc) download
           echo "status=success" >> $GITHUB_OUTPUT
 
-      - name: Fix time stamps into restored dirs
-        if: github.event.inputs.use_cache == 'true' && steps.tools_cache_restore.outputs.cache-hit == 'true'
-        run: |
-          touch staging_dir/host/.prepared
-          touch staging_dir/host/.prereq-build
-          touch staging_dir/host/stamp/.* 2>/dev/null
-          find build_dir/host -name ".prepared*"  -exec touch {} +
-          find build_dir/host -name ".configured" -exec touch {} +
-          find build_dir/host -name ".built"      -exec touch {} +
-
       - name: Build tools and toolchain
         id: tools
         if: ${{ steps.configure.outputs.status == 'success' && env.FAKE_BUILD != 'true' }}
@@ -397,10 +465,17 @@ jobs:
         if: steps.tools.outputs.status == 'success'
         uses: actions/cache/save@v4
         with:
-          key: host-tools-${{ env.CACHE_VER }}-${{ env.CACHE_ARCH }}-${{ hashFiles('tools/**') }}
+          key: host-tools-${{ env.CACHE_VER }}-${{ env.TOOLS_SRC_CRC }}-${{ env.TOOLS_PREREQ_CRC }}-${{ env.TOOLS_COMPILE_CRC }}
           path: |
             staging_dir/host
             build_dir/host
+
+      - name: Show host tools stamps
+        run: |
+          if [ -d staging_dir/host/stamp ]; then
+              ls -la staging_dir/host/stamp/
+              ls -la staging_dir/host/stamp/ > logs/host_stamp_dir.txt
+          fi
 
       - name: Configure 2
         id: configure2
@@ -408,11 +483,16 @@ jobs:
         env: 
           TARGET: ${{ matrix.target }}
         run: |
+          rm -rf logs_backup/
+          cp -a logs logs_backup
           make clean
+          rm -rf logs
+          cp -a logs_backup logs
           ./xmake.sh $OPT_INITRAMFS -I -t $TARGET
-          mkdir -p logs
           cp -f .config logs/config2
-          [ -f config1 ] && cp -f config1 logs/config1
+          echo "::group::disabled_services.lst"
+          cat disabled_services.lst || echo '<<< file disabled_services.lst not found >>>'
+          echo "::endgroup::"
 
       - name: Kernel compile
         id: kernel
@@ -452,7 +532,7 @@ jobs:
               fi
           fi
           echo "status=success" >> $GITHUB_OUTPUT
-          
+
       - name: Process out results
         id: install
         if: steps.compile.outputs.status == 'success' || env.FAKE_BUILD == 'true'
@@ -512,6 +592,37 @@ jobs:
           echo "BUILD FAILED" > $OUT_DIR/FAILED.txt
           echo "BLD_VER=$FW_VER" >> $GITHUB_ENV
           echo "OUT_DIR=$OUT_DIR" >> $GITHUB_ENV
+
+      - name: Build the TRX image without WiFi activation
+        id: compile_wifi_dis
+        if: steps.install.outputs.status == 'success' && env.TRX_BUILD == 'true' && env.FAKE_BUILD != 'true' && env.TEST_BUILD != 'true'
+        env: 
+          TARGET: ${{ matrix.target }}
+        run: |
+          BLD_OUT_DIR=$OUT_DIR
+          NEW_OUT_DIR=$GITHUB_WORKSPACE/xout
+          mv -f "$OUT_DIR" $NEW_OUT_DIR
+          echo "OUT_DIR=$NEW_OUT_DIR" >> $GITHUB_ENV
+          ./xmake.sh -W -i -t $TARGET
+          if [ ! -d "$BLD_OUT_DIR" ]; then
+              echo "OUT_DIR not found!"
+              exit 99
+          fi
+          cd "$BLD_OUT_DIR"
+          echo "Firmware TRX $BLD_VER [$FILE_DATE] builded!"
+          if [ ! -f kernel-debug.tar.zst ]; then
+              echo "File kernel-debug.tar.zst not found!"
+              exit 100
+          fi
+          find . -maxdepth 1 -type f ! -name '*-initramfs*' -delete
+          VER_MAJOR=$( echo "$BLD_VER" | cut -d. -f1 )
+          WIFIDIS_DIR=$NEW_OUT_DIR/images-WiFi-disabled
+          mkdir -p $WIFIDIS_DIR
+          STD_IMG_DIR="$WIFIDIS_DIR/openwrt-initramfs-bin-for-luci"
+          mkdir -p $STD_IMG_DIR
+          find . -maxdepth 1 -type f -name '*-initramfs*.bin' -exec mv -f {} $STD_IMG_DIR/openwrt-${VER_MAJOR}_${TARGET}_initramfs_nowifi.bin \;
+          find . -maxdepth 1 -type f -name '*-initramfs*.trx' -exec mv -f {} $WIFIDIS_DIR/openwrt-${VER_MAJOR}_${TARGET}_initramfs_nowifi.trx \;
+          echo "status=success" >> $GITHUB_OUTPUT
 
       - name: Check space usage
         run: df -hT

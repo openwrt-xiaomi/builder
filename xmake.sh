@@ -12,16 +12,18 @@ fi
 MAKE_JOBS=
 XTARGET=
 OPT_FULL_REBUILD=false
+WIFI_EN=true
 KALLSYMS=false
 TESTING_KERNEL=false
 BUILD_ONLY_INITRAMFS=false
 ONLY_INIT=false
 
-while getopts "j:t:fiskTI" opt; do
+while getopts "j:t:fisWkTI" opt; do
 	case $opt in
 		j) MAKE_JOBS=$OPTARG;;
 		t) XTARGET=$OPTARG;;
 		f) OPT_FULL_REBUILD=true;;
+		W) WIFI_EN=false;;
 		k) KALLSYMS=true;;
 		T) TESTING_KERNEL=true;;
 		i) BUILD_ONLY_INITRAMFS=true;;
@@ -70,6 +72,7 @@ function build_target {
 	for inc in $inclst; do
 		incfn=$XDIR/_cfginc/$inc
 		[ ! -f $incfn ] && die "File '$inc' not found!"
+		[ "$WIFI_EN" == false -a $inc == "_wifi_en.config" ] && continue
 		sed -i "/#include $inc/a <<LF>><<LF>>" $CFG
 		sed -i "s/<<LF>>/\n/g" $CFG
 		sed -i "/#include $inc/ r $incfn" $CFG
@@ -101,21 +104,57 @@ function build_target {
 		echo "CONFIG_TESTING_KERNEL=y" >> $CFG
 	fi
 
+	X_VERSION_MK=$XDIR/include/version.mk
+	X_VERSION_NUMBER=$( grep -o -P '(?<=,\$\(VERSION_NUMBER\),).*(?=\))' $X_VERSION_MK 2>/dev/null )
+	[ -z "$X_VERSION_NUMBER" ] && { echo "ERROR: Cannot determine VERSION_NUMBER"; exit 30; }
+	echo "VERSION_NUMBER = $X_VERSION_NUMBER"
+
+	X_BOARD_NAME=$( sed -n 's/^CONFIG_TARGET_\([^_=\n]\+\)=y$/\1/p' $CFG )
+	[ -z "$X_BOARD_NAME" ] && { echo "ERROR: cannot found BOARD_NAME"; exit 31; }
+	X_SUBTARGET_NAME=$( sed -n 's/^CONFIG_TARGET_[^_=\n]\+_\([^_=\n]\+\)=y$/\1/p' $CFG )
+	[ -z "$X_SUBTARGET_NAME" ] && { echo "ERROR: cannot found SUBTARGET"; exit 31; }
+	echo "BOARD_NAME = $X_BOARD_NAME   SUBTARGET = $X_SUBTARGET_NAME"
+	
+	VERMAGIC_FN=$XDIR/vermagic-$X_BOARD_NAME-$X_SUBTARGET_NAME-$X_VERSION_NUMBER.list
+	if [ ! -f $VERMAGIC_FN ] && [ -f $XDIR/vermagic_update.sh ]; then
+		bash $XDIR/vermagic_update.sh $X_BOARD_NAME $X_SUBTARGET_NAME
+		if [ ! -f $VERMAGIC_FN ]; then
+			echo "ERROR: cannot create file $VERMAGIC_FN"
+			exit 41
+		fi 
+	fi
+
 	if [ 1 = 1 ]; then
+		MK_IMAGE=$XDIR/include/image.mk
 		CURDATE=$( date --utc +%y%m%d )
-		############ change images prefix ############
-		# IMG_PREFIX:=$(VERSION_DIST_SANITIZED)-$(IMG_PREFIX_VERNUM)$(IMG_PREFIX_VERCODE)$(IMG_PREFIX_EXTRA)$(BOARD)$(if $(SUBTARGET),-$(SUBTARGET))
-		sed -i -e 's/^IMG_PREFIX:=.*/IMG_PREFIX:=$(VERSION_DIST_SANITIZED)-$(call sanitize,$(VERSION_NUMBER))-'$CURDATE'/g' $XDIR/include/image.mk
-		echo ">>> image.mk patched !!!"
+		if ! grep -q "(VERSION_NUMBER))-$CURDATE" $MK_IMAGE ; then
+			############ change images prefix ############
+			# IMG_PREFIX:=$(VERSION_DIST_SANITIZED)-$(IMG_PREFIX_VERNUM)$(IMG_PREFIX_VERCODE)$(IMG_PREFIX_EXTRA)$(BOARD)$(if $(SUBTARGET),-$(SUBTARGET))
+			sed -i -e 's/^IMG_PREFIX:=.*/IMG_PREFIX:=$(VERSION_DIST_SANITIZED)-$(call sanitize,$(VERSION_NUMBER))-'$CURDATE'/g' $MK_IMAGE
+			echo ">>> image.mk patched !!! (IMG_PREFIX)"
+		fi
 	fi
 	if [ 1 = 1 ]; then
 		############ remove "squashfs" suffix ############
-		#   DEVICE_IMG_NAME = $$(DEVICE_IMG_PREFIX)-$$(1)-$$(2)
-		sed -i -e 's/.*DEVICE_IMG_NAME =.*/  DEVICE_IMG_NAME = $$(DEVICE_IMG_PREFIX)-$$(2)/g' $XDIR/include/image.mk
-		if grep "squashfs-sys" $XDIR/target/linux/mediatek/image/filogic.mk >/dev/null ; then
+		MK_IMAGE=$XDIR/include/image.mk
+		if grep -q 'DEVICE_IMG_NAME = $$(DEVICE_IMG_PREFIX)-$$(1)-$$(2)' $MK_IMAGE ; then
+			sed -i -e 's/.*DEVICE_IMG_NAME =.*/  DEVICE_IMG_NAME = $$(DEVICE_IMG_PREFIX)-$$(2)/g' $MK_IMAGE
+			echo ">>> image.mk patched !!! (DEVICE_IMG_NAME)"
+		fi
+		if grep -q "squashfs-sys" $XDIR/target/linux/mediatek/image/filogic.mk ; then
 			sed -i 's/ squashfs-sys/ sys/g' $XDIR/target/linux/mediatek/image/filogic.mk
 			sed -i 's/ squashfs-sys/ sys/g' $XDIR/target/linux/mediatek/image/mt7622.mk
 			sed -i 's/ squashfs-sys/ sys/g' $XDIR/target/linux/mediatek/image/mt7623.mk
+		fi
+	fi
+	
+	if ! grep '^CONFIG_BUILD_ALL_HOST_TOOLS=y' $CFG ; then
+		MK_HOST_TOOLS=$XDIR/tools/Makefile
+		# tools-$(if $(CONFIG_BUILD_ALL_HOST_TOOLS)$(CONFIG_USES_MINOR),y) += yafut
+		if grep -q '(CONFIG_USES_MINOR),y)' $MK_HOST_TOOLS ; then
+			# disable build yafut - not support devices with yaffs !!!
+			sed -i 's/\$(CONFIG_USES_MINOR),y)/,y)/g' $MK_HOST_TOOLS
+			echo ">>> tools/Makefile patched !!! (disable yafut)"
 		fi
 	fi
 
@@ -128,6 +167,14 @@ function build_target {
 		fi
 	fi
 	
+	LIBUTP_MK=$XDIR/package/feeds/packages/libutp/Makefile
+	if [ -f $LIBUTP_MK ]; then
+		if grep -q 'DLIBUTP_ENABLE_WERROR:BOOL=YES' $LIBUTP_MK ; then
+			sed -i 's/-DLIBUTP_ENABLE_WERROR:BOOL=YES/-DLIBUTP_ENABLE_WERROR:BOOL=NO/' $LIBUTP_MK
+			echo ">>> libutp patched !!! (disable Werror)"
+		fi
+	fi
+
 	RAB_LUCI_MK=$XDIR/package/feeds/_ruantiblock/luci-app-ruantiblock/Makefile
 	if [ -f $RAB_LUCI_MK ]; then
 		if ! grep "PKG_PROVIDES" $RAB_LUCI_MK >/dev/null ; then
@@ -189,7 +236,16 @@ function build_target {
 		echo ">>> dropbear patched !!! (disable MODERN_ONLY)"
 	fi
 
+	HOST_TOOLS_DIR=$XDIR/staging_dir/host
+	HOST_TOOLS_STAGE=0
+	[ -d $HOST_TOOLS_DIR ] && HOST_TOOLS_STAGE=1
+
 	make defconfig
+	
+	if [ -d $HOST_TOOLS_DIR -a $HOST_TOOLS_STAGE = 0 ]; then
+		ls -la $HOST_TOOLS_DIR/bin | awk '{print $9 " -> " $11}' | sort > $HOST_TOOLS_DIR/.prereq-build-list
+		#cat $HOST_TOOLS_DIR/.prereq-build-list | cksum | awk '{print $1}' > $HOST_TOOLS_DIR/.prereq-build-list.crc
+	fi
 
 	NSS_DRV_PPPOE_ENABLE=$( get_cfg_opt_flag $CFG NSS_DRV_PPPOE_ENABLE )
 	if [ "$NSS_DRV_PPPOE_ENABLE" = y ]; then
